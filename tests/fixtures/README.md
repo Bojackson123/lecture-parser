@@ -57,7 +57,7 @@ Rare-term weighting (Phase 4): **"bellman"** appears in cues 11, 13, 15 only (al
 | 8 | 3:00–3:30 | gap; a question mark as a sentence terminator | Split at "? on average". |
 | 9 | 3:30–4:00 | gap | Two segments. |
 | 10 | 4:00–4:28 | gap; last cue before the return to slides | Two segments; a ~3 s silence before cue 11. |
-| 11 | 4:31–5:00 | **inline timing tags** `<00:04:32.000><c>back</c>…`; first "bellman" | Tags stripped to plain words: "back to the slides. this is the bellman equation, …". |
+| 11 | 4:31–5:00 | **inline timing tags** `<00:04:32.000><c>back</c><00:04:32.400><c>to</c>…` with **no whitespace between them**, so a naive strip glues `backtotheslides`; first "bellman" | Timing tags become a space, `<c>`/`</c>` become nothing, whitespace is collapsed: "back to the slides. this is the bellman equation, …". |
 | 12 | 5:00–5:30 | `<i>expected</i>` styling tag (also kept in the SRT) | Tag stripped, word kept. |
 | 13 | 5:30–6:00 | inline timing tags; "bellman" | Tags stripped. |
 | 14 | 6:00–6:30 | inline timing tags; the exact phrase **"this will be on the exam"** (once in the file) | Tags stripped; Phase 5 must emit `Callout(kind=EXAM)` anchored here (≈6:00–6:30, slide 2). |
@@ -67,6 +67,7 @@ Rare-term weighting (Phase 4): **"bellman"** appears in cues 11, 13, 15 only (al
 | 18 | 7:50–8:15 | **ends mid-sentence** with no terminal punctuation ("…tolerance epsilon") | Held open and merged with cue 19. |
 | 19 | 8:15–8:40 | completes cue 18's sentence with a full stop | Merged segment spans 7:50–8:40. |
 | 20 | 8:40–9:05 | closing cue; apostrophe ("that's"); total duration 9:05 | One segment; end of lecture. |
+| — | inline strings | **tag whitespace**: YouTube writes `<c.colorE5E5E5> word</c>` with the space *inside* the tag, while cue 11 has none between tags; also `&amp;`, `<i>` mid-word, runs of spaces/tabs | `strip_tags` gives single-spaced words either way ("word"; "a & b"); idempotent; the identity on clean text. |
 
 The SRT twin has identical cue text and timings (comma milliseconds, numbered), no
 `NOTE`, no timing/`<c>`/`<v>` tags, and keeps the single `<i>` tag. Parsing both must

@@ -11,3 +11,4 @@ __pycache__/
 # Build artefacts
 dist/
 *.egg-info/
+.hypothesis/

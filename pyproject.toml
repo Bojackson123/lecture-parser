@@ -10,7 +10,13 @@ dependencies = ["pydantic>=2"]
 lecturenotes = "lecturenotes.cli:main"
 
 [dependency-groups]
-dev = ["pytest", "ruff", "mypy", "import-linter"]
+dev = [
+    "pytest",
+    "ruff",
+    "mypy",
+    "import-linter",
+    "hypothesis",
+]
 fixtures = ["reportlab", "python-pptx", "pypdf", "Pillow"]
 
 [build-system]
