@@ -1,0 +1,112 @@
+[
+  {
+    "start_s": 1.0,
+    "end_s": 26.0,
+    "text": "welcome back everyone, today we start on sequential decision making."
+  },
+  {
+    "start_s": 1.0,
+    "end_s": 50.0,
+    "text": "a markov decision process has four ingredients: states, actions, rewards, and a transition function that says where you land after each action."
+  },
+  {
+    "start_s": 50.0,
+    "end_s": 100.0,
+    "text": "the reward is a number you get for taking an action in a state, and the discount factor gamma says how much you care about later rewards."
+  },
+  {
+    "start_s": 100.0,
+    "end_s": 149.0,
+    "text": "keep this picture in your head because the famous equation coming up is nothing more than these four ingredients written down recursively."
+  },
+  {
+    "start_s": 151.0,
+    "end_s": 180.0,
+    "text": "let me step away from the slides for a minute and grab the chalk."
+  },
+  {
+    "start_s": 151.0,
+    "end_s": 180.0,
+    "text": "suppose you roll a fair six-sided die and i pay you whatever number comes up in dollars."
+  },
+  {
+    "start_s": 180.0,
+    "end_s": 210.0,
+    "text": "how much would you pay to play that game?"
+  },
+  {
+    "start_s": 180.0,
+    "end_s": 210.0,
+    "text": "on average you win three and a half dollars, so anything under that is a bargain."
+  },
+  {
+    "start_s": 210.0,
+    "end_s": 240.0,
+    "text": "now suppose i let you reroll once if you dislike the first roll."
+  },
+  {
+    "start_s": 210.0,
+    "end_s": 240.0,
+    "text": "the trick is to think about the second roll first, because its worth is already known."
+  },
+  {
+    "start_s": 240.0,
+    "end_s": 268.0,
+    "text": "you keep the first roll only if it beats three and a half, so you keep a four, a five or a six."
+  },
+  {
+    "start_s": 240.0,
+    "end_s": 268.0,
+    "text": "work it out at home, it comes to four and a quarter."
+  },
+  {
+    "start_s": 271.0,
+    "end_s": 300.0,
+    "text": "back to the slides."
+  },
+  {
+    "start_s": 271.0,
+    "end_s": 300.0,
+    "text": "this is the bellman equation, and it is the heart of the whole course."
+  },
+  {
+    "start_s": 300.0,
+    "end_s": 330.0,
+    "text": "the value of a state is the immediate reward plus gamma times the expected value of wherever you land next."
+  },
+  {
+    "start_s": 330.0,
+    "end_s": 360.0,
+    "text": "the bellman equation is recursive: the value on the left shows up again on the right hand side."
+  },
+  {
+    "start_s": 360.0,
+    "end_s": 390.0,
+    "text": "write it down properly with the max over actions and the sum over next states, this will be on the exam."
+  },
+  {
+    "start_s": 390.0,
+    "end_s": 419.0,
+    "text": "richard bellman called this the principle of optimality, and once you believe the bellman equation has a unique fixed point, everything else in this lecture follows."
+  },
+  {
+    "start_s": 421.0,
+    "end_s": 445.0,
+    "text": "value iteration turns the equation into an update rule: start with every value at zero and sweep over all the states."
+  },
+  {
+    "start_s": 445.0,
+    "end_s": 470.0,
+    "text": "each sweep applies the update once per state, and the maximum change between sweeps shrinks by a factor of gamma every time."
+  },
+  {
+    "start_s": 470.0,
+    "end_s": 520.0,
+    "text": "the plot on the slide shows exactly that, the error drops geometrically, so when the biggest change falls below your tolerance epsilon you stop and read off the greedy policy by picking the best action in every state."
+  },
+  {
+    "start_s": 520.0,
+    "end_s": 545.0,
+    "text": "that's it for today, next time we drop the assumption that we know the transition function and start learning it from samples."
+  }
+]

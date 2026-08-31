@@ -8,6 +8,7 @@ here, add it *here* and update these tables rather than inventing a second fixtu
 ```
 captions/lecture01.vtt      20 cues, hand-written (the canonical caption fixture)
 captions/lecture01.srt      the same 20 cues as SRT
+captions/lecture01.segments.json  the 22 segments both files ingest to, hand-written (P1-03)
 decks/make_deck.py          generator for the three files below (uv run --group fixtures)
 decks/lecture01.pdf         3 landscape pages, slide 2 two-column
 decks/lecture01.pptx        3 slides, speaker notes on every slide, PNG on slide 3
@@ -44,30 +45,37 @@ Rare-term weighting (Phase 4): **"bellman"** appears in cues 11, 13, 15 only (al
 
 ## Captions
 
-| Cue | Time | Exercises | Intended outcome after Phase 1 dedupe / merge |
-|---|---|---|---|
-| — | before cue 1 | `WEBVTT` header, one `NOTE` block | Both skipped; neither is a segment. |
-| 1 | 0:01–0:26 | `<v Lecturer>` voice tag; first cue of the **rolling stretch** (1–6): each cue's first line repeats the previous cue's last line | Voice tag stripped. Cues 1–6 collapse to seven unique lines (A…G) with no repeated text. |
-| 2 | 0:26–0:50 | rolling repeat of cue 1 line 2; sentence continues across the cue boundary | Repeated line dropped; "…rewards, / and a transition function…" merged into one sentence. |
-| 3 | 0:50–1:15 | rolling repeat | Repeated line dropped. |
-| 4 | 1:15–1:40 | rolling repeat; sentence spans 4→5 | Repeated line dropped; merged with cue 5's new line. |
-| 5 | 1:40–2:05 | rolling repeat; new line ends mid-sentence ("…the famous equation coming up"); first "equation" (slide-1 window) | Merged with cue 6's new line into one sentence. |
-| 6 | 2:05–2:29 | last rolling cue; completes the sentence with a full stop | End of slide-1 segment; the rolling stretch yields exactly 7 lines. |
-| 7 | 2:31–3:00 | start of the **board-work gap** (7–10); two sentences in one cue | Two segments (split at ". suppose"). No slide vocabulary anywhere in 7–10. |
-| 8 | 3:00–3:30 | gap; a question mark as a sentence terminator | Split at "? on average". |
-| 9 | 3:30–4:00 | gap | Two segments. |
-| 10 | 4:00–4:28 | gap; last cue before the return to slides | Two segments; a ~3 s silence before cue 11. |
-| 11 | 4:31–5:00 | **inline timing tags** `<00:04:32.000><c>back</c><00:04:32.400><c>to</c>…` with **no whitespace between them**, so a naive strip glues `backtotheslides`; first "bellman" | Timing tags become a space, `<c>`/`</c>` become nothing, whitespace is collapsed: "back to the slides. this is the bellman equation, …". |
-| 12 | 5:00–5:30 | `<i>expected</i>` styling tag (also kept in the SRT) | Tag stripped, word kept. |
-| 13 | 5:30–6:00 | inline timing tags; "bellman" | Tags stripped. |
-| 14 | 6:00–6:30 | inline timing tags; the exact phrase **"this will be on the exam"** (once in the file) | Tags stripped; Phase 5 must emit `Callout(kind=EXAM)` anchored here (≈6:00–6:30, slide 2). |
-| 15 | 6:30–6:59 | "bellman" twice in one cue (name and equation); last slide-2 cue | One long sentence, one segment. |
-| 16 | 7:01–7:25 | slide-3 start; "equation" in the slide-3 window | One segment. |
-| 17 | 7:25–7:50 | **multi-line cue** that is *not* a rolling repeat; the line break falls mid-sentence | Lines joined with a space into one sentence. |
-| 18 | 7:50–8:15 | **ends mid-sentence** with no terminal punctuation ("…tolerance epsilon") | Held open and merged with cue 19. |
-| 19 | 8:15–8:40 | completes cue 18's sentence with a full stop | Merged segment spans 7:50–8:40. |
-| 20 | 8:40–9:05 | closing cue; apostrophe ("that's"); total duration 9:05 | One segment; end of lecture. |
-| — | inline strings | **tag whitespace**: YouTube writes `<c.colorE5E5E5> word</c>` with the space *inside* the tag, while cue 11 has none between tags; also `&amp;`, `<i>` mid-word, runs of spaces/tabs | `strip_tags` gives single-spaced words either way ("word"; "a & b"); idempotent; the identity on clean text. |
+| Cue | Time | Segments | Exercises | Intended outcome after Phase 1 dedupe / merge |
+|---|---|---|---|---|
+| — | before cue 1 | — | `WEBVTT` header, one `NOTE` block | Both skipped; neither is a segment. |
+| 1 | 0:01–0:26 | 1, 2 | `<v Lecturer>` voice tag; first cue of the **rolling stretch** (1–6): each cue's first line repeats the previous cue's last line | Voice tag stripped. Cues 1–6 collapse to seven unique lines (A…G) with no repeated text. |
+| 2 | 0:26–0:50 | 2 | rolling repeat of cue 1 line 2; sentence continues across the cue boundary | Repeated line dropped; "…rewards, / and a transition function…" merged into one sentence. |
+| 3 | 0:50–1:15 | 3 | rolling repeat | Repeated line dropped. |
+| 4 | 1:15–1:40 | 3 | rolling repeat; sentence spans 4→5 | Repeated line dropped; merged with cue 5's new line. |
+| 5 | 1:40–2:05 | 4 | rolling repeat; new line ends mid-sentence ("…the famous equation coming up"); first "equation" (slide-1 window) | Merged with cue 6's new line into one sentence. |
+| 6 | 2:05–2:29 | 4 | last rolling cue; completes the sentence with a full stop | End of slide-1 segment; the rolling stretch yields exactly 7 lines. |
+| 7 | 2:31–3:00 | 5, 6 | start of the **board-work gap** (7–10); two sentences in one cue | Two segments (split at ". suppose"). No slide vocabulary anywhere in 7–10. |
+| 8 | 3:00–3:30 | 7, 8 | gap; a question mark as a sentence terminator | Split at "? on average". |
+| 9 | 3:30–4:00 | 9, 10 | gap | Two segments. |
+| 10 | 4:00–4:28 | 11, 12 | gap; last cue before the return to slides | Two segments; a ~3 s silence before cue 11. |
+| 11 | 4:31–5:00 | 13, 14 | **inline timing tags** `<00:04:32.000><c>back</c><00:04:32.400><c>to</c>…` with **no whitespace between them**, so a naive strip glues `backtotheslides`; first "bellman" | Timing tags become a space, `<c>`/`</c>` become nothing, whitespace is collapsed: "back to the slides. this is the bellman equation, …". |
+| 12 | 5:00–5:30 | 15 | `<i>expected</i>` styling tag (also kept in the SRT) | Tag stripped, word kept. |
+| 13 | 5:30–6:00 | 16 | inline timing tags; "bellman" | Tags stripped. |
+| 14 | 6:00–6:30 | 17 | inline timing tags; the exact phrase **"this will be on the exam"** (once in the file) | Tags stripped; Phase 5 must emit `Callout(kind=EXAM)` anchored here (≈6:00–6:30, slide 2). |
+| 15 | 6:30–6:59 | 18 | "bellman" twice in one cue (name and equation); last slide-2 cue | One long sentence, one segment. |
+| 16 | 7:01–7:25 | 19 | slide-3 start; "equation" in the slide-3 window | One segment. |
+| 17 | 7:25–7:50 | 20 | **multi-line cue** that is *not* a rolling repeat; the line break falls mid-sentence | Lines joined with a space into one sentence. |
+| 18 | 7:50–8:15 | 21 | **ends mid-sentence** with no terminal punctuation ("…tolerance epsilon") | Held open and merged with cue 19. |
+| 19 | 8:15–8:40 | 21 | completes cue 18's sentence with a full stop | Merged segment spans 7:50–8:40. |
+| 20 | 8:40–9:05 | 22 | closing cue; apostrophe ("that's"); total duration 9:05 | One segment; end of lecture. |
+| — | inline strings | — | **tag whitespace**: YouTube writes `<c.colorE5E5E5> word</c>` with the space *inside* the tag, while cue 11 has none between tags; also `&amp;`, `<i>` mid-word, runs of spaces/tabs | `strip_tags` gives single-spaced words either way ("word"; "a & b"); idempotent; the identity on clean text. |
+
+`captions/lecture01.segments.json` is the *expected output* of Phase 1 for both
+files: `ingest_captions()` (parse → dedupe → merge) must equal it exactly. It was
+transcribed by hand from the *Segments* column above and is never regenerated from the
+code under test; if the merge rule changes on purpose, edit the table, then the JSON.
+A segment's span is the union of the cues that contributed to it, so two sentences
+from one cue share a span and spans may overlap (P1-03 decision).
 
 The SRT twin has identical cue text and timings (comma milliseconds, numbered), no
 `NOTE`, no timing/`<c>`/`<v>` tags, and keeps the single `<i>` tag. Parsing both must
