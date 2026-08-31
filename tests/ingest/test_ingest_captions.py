@@ -82,3 +82,29 @@ def test_merge_knobs_are_forwarded(fixtures_dir: Path, expected_segments: list[S
     path = fixtures_dir / "captions" / "lecture01.vtt"
     assert ingest_captions(path, max_segment_s=60.0) == expected_segments
     assert ingest_captions(path, max_segment_s=40.0) != expected_segments
+
+
+# --- the captions-table rows with no other named test (Phase 1 done-gate) ----------
+
+
+def _spans(segments: list[Segment], start_s: float, end_s: float) -> list[Segment]:
+    return [s for s in segments if s.start_s == start_s and s.end_s == end_s]
+
+
+def test_cue_09_gap_cue_gives_two_segments_sharing_its_span(
+    expected_segments: list[Segment],
+) -> None:
+    assert len(_spans(expected_segments, 210.0, 240.0)) == 2
+
+
+def test_cue_10_last_gap_cue_gives_two_segments_sharing_its_span(
+    expected_segments: list[Segment],
+) -> None:
+    assert len(_spans(expected_segments, 240.0, 268.0)) == 2
+
+
+def test_cue_16_slide_3_start_is_one_segment_mentioning_equation(
+    expected_segments: list[Segment],
+) -> None:
+    (segment,) = _spans(expected_segments, 421.0, 445.0)
+    assert "equation" in segment.text
