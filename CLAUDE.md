@@ -56,6 +56,22 @@ duplicates. Derive them from source coordinates — `lecture_id + slide_range` �
 position in the list or a slug of the heading, both of which move when you change a
 prompt.
 
+## Caption ingest (Phase 1)
+
+Two invariants later phases depend on (P1-03/P1-04 decisions):
+
+- **`Segment` spans are unions of cue spans.** A segment runs from the first cue that
+  contributed to it to the last; two sentences from one cue share that cue's span.
+  Spans may therefore overlap and **do not partition time** — sort by `start_s`, never
+  assume a partition, never interpolate within a cue (the anchor must point where the
+  words really are).
+- **`ingest_captions(path)` is the only entrypoint.** `parse_vtt`/`parse_srt`,
+  `dedupe_rolling` and `merge_sentences` are exported for debugging and tests, not for
+  re-composition elsewhere; anything that needs segments calls `ingest_captions`.
+
+`lecturenotes captions FILE [--json]` prints the segments for one file — a debugging
+aid for bad chunks, not the product. It must not grow pairing or chunking logic.
+
 ## Boundary rules
 
 - `model/` imports nothing else in the package.
@@ -73,6 +89,7 @@ uv run pytest
 uv run ruff check .
 uv run mypy
 uv run lint-imports
+uv run lecturenotes captions tests/fixtures/captions/lecture01.vtt   # smoke: 22 lines
 ```
 
 ## Working conventions

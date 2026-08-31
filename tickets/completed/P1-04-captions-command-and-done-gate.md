@@ -79,3 +79,5 @@ do only the done-gate part and note the decision here.
 - **UTF-8 stdout is enforced in the command**, not assumed from the console, for the same
   reason P0-04 wrote its snapshot via `sys.stdout.buffer`: Windows code pages mangle
   non-ASCII, and the en-dash in `[0:01–0:26]` is non-ASCII.
+- **Done in full, CLI included** (2026-08-31): the "optional — done-gate only" path was
+  not taken; `captions` exists and is the Phase 1 smoke command in `CLAUDE.md`.
