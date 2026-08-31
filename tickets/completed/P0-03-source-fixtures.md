@@ -109,3 +109,15 @@ Kilobytes, not megabytes (plan §8).
 - Fixture design is the point of this ticket: each edge case in the README table is a
   future test's name. If a later phase needs a case that isn't here, add it *here* and
   update the README, rather than inventing a second fixture.
+- **PPTX slide 2 uses the *Two Content* layout**, not title+content with a second text
+  box: it is how a real two-column slide is authored, and it gives Phase 2 a
+  placeholder-ordered case (left then right) to contrast with the PDF's interleaving.
+- **`value_iteration.png` is committed alongside the decks** (1.4 KB) so Phase 2 can
+  compare the extracted image against its source bytes; both decks embed the same PNG.
+- **Board work is a dice/reroll detour**, thematically backward induction but lexically
+  disjoint from the slides (no state/action/reward/value/equation/gamma), so the gap
+  signal is unambiguous.
+- Regeneration is byte-identical (reportlab `invariant=1`, fixed core properties, PPTX
+  zip entries rewritten with a pinned timestamp). To verify the dev-only skip path use
+  `uv run --exact --no-group fixtures pytest tests/fixtures`; plain `uv run` syncs
+  inexactly and leaves the fixture packages installed.

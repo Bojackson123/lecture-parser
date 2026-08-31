@@ -1,0 +1,86 @@
+1
+00:00:01,000 --> 00:00:26,000
+welcome back everyone, today we start on sequential decision making.
+a markov decision process has four ingredients: states, actions, rewards,
+
+2
+00:00:26,000 --> 00:00:50,000
+a markov decision process has four ingredients: states, actions, rewards,
+and a transition function that says where you land after each action.
+
+3
+00:00:50,000 --> 00:01:15,000
+and a transition function that says where you land after each action.
+the reward is a number you get for taking an action in a state,
+
+4
+00:01:15,000 --> 00:01:40,000
+the reward is a number you get for taking an action in a state,
+and the discount factor gamma says how much you care about later rewards.
+
+5
+00:01:40,000 --> 00:02:05,000
+and the discount factor gamma says how much you care about later rewards.
+keep this picture in your head because the famous equation coming up
+
+6
+00:02:05,000 --> 00:02:29,000
+keep this picture in your head because the famous equation coming up
+is nothing more than these four ingredients written down recursively.
+
+7
+00:02:31,000 --> 00:03:00,000
+let me step away from the slides for a minute and grab the chalk. suppose you roll a fair six-sided die and i pay you whatever number comes up in dollars.
+
+8
+00:03:00,000 --> 00:03:30,000
+how much would you pay to play that game? on average you win three and a half dollars, so anything under that is a bargain.
+
+9
+00:03:30,000 --> 00:04:00,000
+now suppose i let you reroll once if you dislike the first roll. the trick is to think about the second roll first, because its worth is already known.
+
+10
+00:04:00,000 --> 00:04:28,000
+you keep the first roll only if it beats three and a half, so you keep a four, a five or a six. work it out at home, it comes to four and a quarter.
+
+11
+00:04:31,000 --> 00:05:00,000
+back to the slides. this is the bellman equation, and it is the heart of the whole course.
+
+12
+00:05:00,000 --> 00:05:30,000
+the value of a state is the immediate reward plus gamma times the <i>expected</i> value of wherever you land next.
+
+13
+00:05:30,000 --> 00:06:00,000
+the bellman equation is recursive: the value on the left shows up again on the right hand side.
+
+14
+00:06:00,000 --> 00:06:30,000
+write it down properly with the max over actions and the sum over next states, this will be on the exam.
+
+15
+00:06:30,000 --> 00:06:59,000
+richard bellman called this the principle of optimality, and once you believe the bellman equation has a unique fixed point, everything else in this lecture follows.
+
+16
+00:07:01,000 --> 00:07:25,000
+value iteration turns the equation into an update rule: start with every value at zero and sweep over all the states.
+
+17
+00:07:25,000 --> 00:07:50,000
+each sweep applies the update once per state, and the maximum change
+between sweeps shrinks by a factor of gamma every time.
+
+18
+00:07:50,000 --> 00:08:15,000
+the plot on the slide shows exactly that, the error drops geometrically, so when the biggest change falls below your tolerance epsilon
+
+19
+00:08:15,000 --> 00:08:40,000
+you stop and read off the greedy policy by picking the best action in every state.
+
+20
+00:08:40,000 --> 00:09:05,000
+that's it for today, next time we drop the assumption that we know the transition function and start learning it from samples.

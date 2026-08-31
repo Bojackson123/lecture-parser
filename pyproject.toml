@@ -11,6 +11,7 @@ lecturenotes = "lecturenotes.cli:main"
 
 [dependency-groups]
 dev = ["pytest", "ruff", "mypy", "import-linter"]
+fixtures = ["reportlab", "python-pptx", "pypdf", "Pillow"]
 
 [build-system]
 requires = ["hatchling"]
