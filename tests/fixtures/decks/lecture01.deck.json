@@ -1,0 +1,82 @@
+{
+  "source": "tests/fixtures/decks/lecture01.pptx",
+  "slides": [
+    {
+      "number": 1,
+      "title": "Markov Decision Processes",
+      "blocks": [
+        {
+          "lines": [
+            "States s in S: everything the agent needs to know about the world right now",
+            "Actions a in A: the choices available in each state",
+            "Reward R(s, a): a number received for taking action a in state s",
+            "Transition function T(s, a, s'): where you land after each action",
+            "Discount factor gamma in [0, 1): how much later rewards count"
+          ]
+        }
+      ],
+      "notes": "Start with the four ingredients and keep coming back to them. Students usually confuse the reward function with the value function, so stress that the reward is immediate and given. The discount factor is introduced here only so the equation on the next slide makes sense.",
+      "image_ids": [],
+      "hidden": false
+    },
+    {
+      "number": 2,
+      "title": "The Bellman Equation",
+      "blocks": [
+        {
+          "lines": [
+            "Equation",
+            "V(s) = max_a [ R(s, a) + gamma * sum_s' T(s, a, s') V(s') ]",
+            "V(s): value of state s",
+            "max_a: best action available",
+            "sum_s' T(s, a, s'): expectation over next states",
+            "gamma: discount factor"
+          ]
+        },
+        {
+          "lines": [
+            "Intuition",
+            "Value = immediate reward + discounted future",
+            "Recursive: V appears on both sides",
+            "Exactly one fixed point",
+            "Solve it by repeated substitution",
+            "Everything else in the course builds on this"
+          ]
+        }
+      ],
+      "notes": "Walk the left column top to bottom before touching the intuition column. The recursion is the point: the same V appears on both sides. Mention that this will be on the exam.",
+      "image_ids": [],
+      "hidden": false
+    },
+    {
+      "number": 3,
+      "title": "Value Iteration",
+      "blocks": [
+        {
+          "lines": [
+            "1. Initialise V_0(s) = 0 for every state",
+            "2. Sweep: V_{k+1}(s) = max_a [ R(s, a) +",
+            "gamma * sum_s' T(s, a, s') V_k(s') ]",
+            "3. Stop when max_s |V_{k+1}(s) - V_k(s)| < epsilon",
+            "4. Read off the greedy policy pi(s) = argmax_a [ ... ]"
+          ]
+        }
+      ],
+      "notes": "Run through one sweep by hand if time allows. The plot is the maximum change between successive sweeps on a small grid world; it falls geometrically with rate gamma. Close by previewing model-free methods next week.",
+      "image_ids": [
+        "img-a63ae9b7dc5e9397"
+      ],
+      "hidden": false
+    }
+  ],
+  "assets": [
+    {
+      "id": "img-a63ae9b7dc5e9397",
+      "media_type": "image/png",
+      "width": 240,
+      "height": 150,
+      "data": "iVBORw0KGgoAAAANSUhEUgAAAPAAAACWCAMAAADXJvXnAAADAFBMVEX///8AAAAeWsgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACzY7/oAAACSUlEQVR42u2d2ZaDIBBEu/j/j57JYtCQMZNEDfStOiZkebo0IiJUR1iWZVmWZVmW9a4knV/XT3E6pr9yAt8fGOBTiJeU2SOs67ubdNoIMzqt9bowsIHzqJxECqaBMw2mL9ekqGVi4MtwUnWESQC+kS4H00pJvAYcWYH1N3DJ2mlN6NJiLJ35yjRr2bNvyYFD9/fD2UPc9mdA4AK7WwIRaxpy4YALbAIACFxgUzwUYs0mA3DABTZrCQQusHlpBLGWk5g44AJ71AIELrCHafmJ1Tx8wQEnD7KBDUwALrA1HqmJ9XjpBw64wJYtJSZWwIgVMGIFjFgBI9baukQccIGtpk28hAtErIARK2DEChixni+axwHnmhEQbV+EgQ2c7CTWv/c3wXampSFWwIgVMGIFjFgvbs2EbadNQKyAEStgxAoYsd7bVT4utWgb6Q1s4GRnsT6wxKAZl4wZZH3oe0KzphkPWRu429DMh36JB+q1tZWFEQk4gglccMBDIGtrPzKaRVz3yNrFdq7jbky7We2RgHvutrWnn2KPyLsC99ht6zDrzE4irqP8QlHAPZ3TOtYWdgH9lSrQ4T64FTs58LN4A+yWv9LI1YHZ86GNXH15XTfAm1eB+jP4XnBvXgXq1dG8ZY9NqkAjmLq3Sg78chWs+7YOpjNe+0uEcxlYlmVZlhXO6GTg4fJl3ArVtAq39BlKxDylFKyp9ppimXRw/AjHlNjoms9pVsQ8l2Yq5DNubbizIl+E6xlMadKa4QE6LV9+ycCWZVmWZUX8ALbJBmo3nJN6AAAAAElFTkSuQmCC"
+    }
+  ],
+  "recurring_image_ids": []
+}

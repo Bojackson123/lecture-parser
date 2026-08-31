@@ -12,6 +12,8 @@ captions/lecture01.segments.json  the 22 segments both files ingest to, hand-wri
 decks/make_deck.py          generator for the three files below (uv run --group fixtures)
 decks/lecture01.pdf         3 landscape pages, slide 2 two-column
 decks/lecture01.pptx        3 slides, speaker notes on every slide, PNG on slide 3
+decks/lecture01.deck.json   the PPTX deck as `Deck` JSON, hand-written (P2-01); the PDF yields
+                            the same titles and blocks with `notes: null` (P2-02)
 decks/value_iteration.png   the figure embedded in both decks (1.4 KB)
 notes/week01.py             hand-written NoteWeek builder covering the whole IR (P0-04)
 notes/week01.json           its committed snapshot; regenerate with `--write`, never by hand
@@ -92,6 +94,13 @@ yield the same 20 cues after tag stripping.
 Speaker notes (PPTX only) are 2–3 sentences per slide and are Phase 2 test data; slide
 2's notes contain "this will be on the exam" as well, so a notes-aware Phase 5 has a
 second, slide-side source for the same callout.
+
+`decks/lecture01.deck.json` is the *expected output* of Phase 2 for the PPTX:
+`ingest_slides()` must equal it exactly, and the PDF must yield the same titles and blocks
+(P2-02). It was transcribed by hand from the constants in `make_deck.py` and the decks
+table above and is never regenerated from the code under test; if an extraction rule
+changes on purpose, edit the table, then the JSON. Image ids are content hashes
+(`img-` + 16 hex of sha256) and image bytes are stored as base64 (P2-01 decision).
 
 Slide text is ASCII only (`gamma`, `sum_s'`, `in`) because reportlab's built-in fonts are
 Latin-1; the identical strings appear in the PDF and PPTX so cross-format tests can
