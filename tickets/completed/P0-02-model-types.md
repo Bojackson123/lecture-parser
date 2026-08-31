@@ -90,7 +90,8 @@ more than speed here.
 - `uv run ruff check .` clean.
 - `grep -rn "from lecturenotes\|import lecturenotes" lecturenotes/model/` shows only
   `lecturenotes.model.*` imports (the boundary rule, checked by hand until P0-04 automates it).
-- `python -c "from lecturenotes.model import *; print(len(__all__))"` succeeds.
+- `python -c "from lecturenotes.model import *; import lecturenotes.model as m; print(len(m.__all__))"`
+  prints `22` (a star-import never binds `__all__` itself, so the module has to be named).
 
 ## Decisions & notes
 
@@ -107,3 +108,9 @@ more than speed here.
   free; `degrade()` will use `model_copy(update=...)`.
 - `extra="forbid"` so a typo in a fixture or an LLM response fails loudly rather than
   silently dropping a field.
+- **Discriminator values are snake_case class names** (`prose`, `bullet_list`,
+  `code_block`, …); the ticket table left them open. Locked in here because P0-04's
+  `week01.json` snapshot and every later fixture will carry them.
+- **Validators raise `ValueError` naming the offending ids** (`duplicate lecture id(s):
+  lec01`, `figure(s) reference unknown asset id(s): fig-9`) so a failing fixture or LLM
+  response points at the culprit, not just the field.

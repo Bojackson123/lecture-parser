@@ -11,7 +11,7 @@ Plan §6: *done when types instantiate; fixtures committed.*
 | ID | Title | Depends on | Done when |
 |---|---|---|---|
 | [P0-01](completed/P0-01-repo-and-toolchain.md) | Repo, toolchain, package skeleton, CLAUDE.md | — | `uv sync` + pytest/ruff/mypy pass; `lecturenotes --version` works; initial commit exists |
-| [P0-02](P0-02-model-types.md) | `model/` types + stable-ID helper | P0-01 | Every IR type instantiates and JSON round-trips; validators reject bad input; mypy strict clean |
+| [P0-02](completed/P0-02-model-types.md) | `model/` types + stable-ID helper | P0-01 | Every IR type instantiates and JSON round-trips; validators reject bad input; mypy strict clean |
 | [P0-03](P0-03-source-fixtures.md) | Source fixtures (captions + deck) | P0-01 | 20-cue `.vtt`/`.srt` and 3-page `.pdf`/`.pptx` committed with a generator script and sanity tests |
 | [P0-04](P0-04-notes-fixture-tests-boundaries.md) | Hand-written `NoteWeek` fixture, test scaffolding, boundary enforcement | P0-02, P0-03 | `week01.json` snapshot committed; import-linter contracts enforced from `pytest` |
 
