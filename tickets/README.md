@@ -2,7 +2,8 @@
 
 Work items for `PROJECT_PLAN.md`, one file per ticket. Each ticket is sized for a
 single Claude Code session and has command-based acceptance criteria so "done" can be
-checked without judgment calls.
+checked without judgment calls. Open tickets live in this directory; finished ones move
+to `completed/`.
 
 ## Phase 0 — Repo skeleton, `model/` types, fixtures
 
@@ -29,14 +30,58 @@ uv run pytest && uv run ruff check . && uv run mypy && uv run lint-imports
 
 passes with the fixtures committed.
 
-**Phase 0 is done.** Phase 1 (caption ingest) can start; its tickets will be added to
-this index in a later session.
+**Phase 0 is done.**
+
+## Phase 1 — Caption ingest
+
+Plan §6: *done when the rolling-caption fixture dedupes; tags stripped; segments merge
+on sentence boundaries.* Plan §3 stage 1: `.vtt` / `.srt` → `[Segment]`, a pure
+function. Plan §10: tests first — "the caption-dedupe edge cases are the whole
+difficulty" — and property-based tests for the pure stages.
+
+All of Phase 1 lives in one module, `lecturenotes/ingest/captions.py`, as three pure
+functions plus a composing entrypoint; each ticket adds one stage and consumes the
+previous ticket's output:
+
+```
+parse_vtt / parse_srt  → [Cue]        P1-01   (tags stripped here)
+dedupe_rolling         → [Cue]        P1-02
+merge_sentences        → [Segment]    P1-03
+ingest_captions(path)  → [Segment]    P1-03   (parse → dedupe → merge, by suffix)
+```
+
+| ID | Title | Depends on | Done when |
+|---|---|---|---|
+| [P1-01](P1-01-caption-parsing-and-tags.md) | `Cue`/`Segment` types, VTT + SRT parsing, tag stripping | P0-04 | Both fixtures parse to the *same* 20 clean cues; `strip_tags` handles the no-whitespace timing-tag case; hypothesis round-trip passes |
+| [P1-02](P1-02-rolling-caption-dedupe.md) | Rolling-caption dedupe | P1-01 | Fixture cues 1–6 collapse to seven lines with original timings; cues 7–20 untouched; dedupe is idempotent under hypothesis |
+| [P1-03](P1-03-sentence-merge-and-segments.md) | Sentence-boundary merge, `ingest_captions()`, expected-segments snapshot | P1-02 | Hand-written `lecture01.segments.json` (22 segments) equals `ingest_captions()` on both VTT and SRT |
+| [P1-04](P1-04-captions-command-and-done-gate.md) | `lecturenotes captions FILE` inspection command + Phase 1 done-gate | P1-03 | `lecturenotes captions <vtt>` prints 22 lines; done-gate ticked; tickets moved to `completed/`. *Optional* — see the ticket |
+
+**Suggested order:** strictly P1-01 → P1-02 → P1-03 → P1-04; each function consumes
+the previous one's output, so there is no parallelism here.
+
+### Phase 1 done-gate
+
+- [ ] The plan §6 done-criterion is a passing test: `tests/ingest/test_ingest_captions.py`
+      compares `ingest_captions()` against the hand-written `tests/fixtures/captions/lecture01.segments.json`.
+- [ ] Every row of the captions table in `tests/fixtures/README.md` has a test named after it under `tests/ingest/`.
+- [ ] From a clean checkout:
+
+```
+uv sync --all-groups
+uv run pytest && uv run ruff check . && uv run mypy && uv run lint-imports
+```
+
+passes, and `uv run lecturenotes captions tests/fixtures/captions/lecture01.vtt` prints
+22 segments (if P1-04 was done).
+
+Phase 2 (slide ingest) tickets will be added to this index in a later session.
 
 ## Ticket format
 
 ```
-# P0-NN — Title
-Phase 0 · Depends on: … · Size: S/M/L
+# P<phase>-NN — Title
+Phase <phase> · Depends on: … · Size: S/M/L
 
 ## Goal            one paragraph: what exists after this ticket that didn't before
 ## Scope           In / Out bullet lists — Out names the ticket or phase that owns it
@@ -47,5 +92,5 @@ Phase 0 · Depends on: … · Size: S/M/L
 
 ## Stack (pinned)
 
-Python 3.12 · uv · pydantic v2 · pytest · ruff · mypy (strict) · import-linter.
+Python 3.12 · uv · pydantic v2 · pytest · hypothesis (from P1-01) · ruff · mypy (strict) · import-linter.
 Fixture generation uses `reportlab` and `python-pptx` in a separate `fixtures` dependency group.
