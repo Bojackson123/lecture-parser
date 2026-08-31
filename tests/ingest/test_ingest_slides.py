@@ -1,7 +1,9 @@
-"""P2-01: the Phase 2 done-gate, PPTX half (plan §6; P2-02 adds the PDF half).
+"""The Phase 2 done-gate (plan §6): PPTX half (P2-01) and PDF half (P2-02).
 
 ``ingest_slides()`` on the PPTX fixture must equal the **hand-written**
-``tests/fixtures/decks/lecture01.deck.json``. The JSON transcribes the constants in
+``tests/fixtures/decks/lecture01.deck.json``, and on the PDF fixture must yield the
+same slide numbers, titles and blocks (notes are ``None``; whole-deck equality waits
+for P2-03's PDF images). The JSON transcribes the constants in
 ``tests/fixtures/decks/make_deck.py`` and the decks table in ``tests/fixtures/README.md``;
 it is never regenerated from the code under test, or the snapshot would only prove that
 the code agrees with itself.
@@ -49,6 +51,23 @@ def test_pptx_ingests_to_the_hand_written_deck(
     actual = ingest_slides(Path(expected_deck.source))
     assert actual == expected_deck, HAND_WRITTEN
     assert len(actual.slides) == SLIDE_COUNT
+
+
+def test_pdf_ingests_to_the_hand_written_titles_and_blocks(
+    decks_dir: Path, expected_deck: Deck
+) -> None:
+    pdf = ingest_slides(decks_dir / "lecture01.pdf")
+    assert [(s.number, s.title, s.blocks) for s in pdf.slides] == [
+        (s.number, s.title, s.blocks) for s in expected_deck.slides
+    ], HAND_WRITTEN
+    assert all(slide.notes is None for slide in pdf.slides)
+
+
+def test_pdf_and_pptx_agree_on_titles_and_blocks(decks_dir: Path) -> None:
+    """The SRT-style cross-format assertion: one lecture, two files, one extraction."""
+    pdf = ingest_slides(decks_dir / "lecture01.pdf")
+    pptx = ingest_slides(decks_dir / "lecture01.pptx")
+    assert [(s.title, s.blocks) for s in pdf.slides] == [(s.title, s.blocks) for s in pptx.slides]
 
 
 def test_deck_survives_a_json_round_trip(decks_dir: Path) -> None:
