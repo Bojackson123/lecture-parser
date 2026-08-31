@@ -151,3 +151,17 @@ fully, then right.
   post-step in `ingest_slides` that marks (not removes) overlay pages.
 - **`y` grows upward** (PDF user space) in `Span`; "top → bottom" means descending `y`.
   Keep the synthetic strategies in the same convention so property failures are readable.
+- **Span coordinates are `tm × cm`, not raw `tm[4]`/`tm[5]`** (implementation note).
+  pypdf hands the visitor the text matrix and the current transformation separately, and
+  exporters that draw inside a scaled `cm` (PowerPoint's own export, Cairo) keep the real
+  size in the matrices rather than in `Tf`; so `x, y` are the composed origin and `size` is
+  `font_size ×` the composed unit height. Identical to the raw values on the fixture
+  (identity `cm`, unit `Tm`), and it keeps the 0.15 × page-width threshold in the same
+  units as `mediabox`.
+- **A page that is a single row is a title** (a section slide with nothing else), even
+  at one size; "uniform size → no title" holds from two rows up. The synthetic two-column
+  strategy therefore keeps its rows apart in the one-line-each case.
+- **The footer rule is tested on pages copied out of the fixture** with
+  `pypdf.PdfWriter.add_page`: page 1 alone keeps `slide 1 / 3` (one page can't recur),
+  pages 1–2 drop it. Same P2-01 rule as ad-hoc PPTX decks: cases about the *file format*
+  are built in the test; cases about the *lecture* go into the fixture.

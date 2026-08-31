@@ -408,6 +408,7 @@ version = "0.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "pydantic" },
+    { name = "pypdf" },
     { name = "python-pptx" },
 ]
 
@@ -421,13 +422,13 @@ dev = [
 ]
 fixtures = [
     { name = "pillow" },
-    { name = "pypdf" },
     { name = "reportlab" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "pydantic", specifier = ">=2" },
+    { name = "pypdf", specifier = ">=6" },
     { name = "python-pptx", specifier = ">=1.0" },
 ]
 
@@ -441,7 +442,6 @@ dev = [
 ]
 fixtures = [
     { name = "pillow" },
-    { name = "pypdf" },
     { name = "reportlab" },
 ]
 

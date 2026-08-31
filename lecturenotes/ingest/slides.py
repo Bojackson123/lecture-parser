@@ -19,10 +19,11 @@ Both parsers push every title, body line and note through ``clean_line`` so the 
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 import zipfile
 from collections import Counter
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 
 from pptx import Presentation
@@ -35,16 +36,22 @@ from pptx.shapes.shapetree import SlideShapes
 from pptx.slide import Slide as PptxSlide
 from pptx.util import Emu, Length
 from pydantic import BaseModel, ConfigDict, model_validator
+from pypdf import PageObject, PasswordType, PdfReader
+from pypdf.errors import DependencyError, PyPdfError
 
 __all__ = [
     "Deck",
     "DeckParseError",
+    "PageLayout",
     "Slide",
     "SlideImage",
+    "Span",
     "TextBlock",
     "clean_line",
     "image_id",
     "ingest_slides",
+    "layout_page",
+    "parse_pdf",
     "parse_pptx",
 ]
 
@@ -300,15 +307,232 @@ def parse_pptx(path: Path) -> Deck:
     return Deck(source=path.as_posix(), slides=tuple(slides), assets=tuple(assets.values()))
 
 
+# --- PDF: page layout (pure) -------------------------------------------------------------
+#
+# A PDF has no placeholders, only positioned strings. ``layout_page`` turns one page's
+# spans into a title plus one ``TextBlock`` per column, by rules that never look at the
+# order the spans arrived in (the content-stream order is what must not leak out):
+#
+#   rows     spans whose baselines differ by <= 0.5 x min(size) share a row
+#   title    the topmost row set entirely in the largest face, if that face beats every
+#            other size by 1.15x (or the page is that one row); a same-size row directly
+#            beneath (gap <= 1.5 x size) joins it
+#   columns  single linkage over the distinct x-starts: a gap wider than 0.15 x page
+#            width starts a new column, so a sub-bullet indent never does
+#   order    columns left to right; rows top to bottom; spans in a row joined by a space
+
+_ROW_TOLERANCE = 0.5
+_TITLE_RATIO = 1.15
+_TITLE_JOIN = 1.5
+_COLUMN_GAP = 0.15
+
+
+class Span(_DeckModel):
+    """One drawn string: start point in PDF user space (``y`` grows upward) and size."""
+
+    x: float
+    y: float
+    size: float
+    text: str
+
+    @model_validator(mode="after")
+    def _valid(self) -> Span:
+        if not self.size > 0:
+            raise ValueError(f"span size must be > 0, got {self.size}")
+        return self
+
+
+class PageLayout(_DeckModel):
+    """``layout_page``'s result: the page title, if any, and one ``TextBlock`` per column."""
+
+    title: str | None
+    blocks: tuple[TextBlock, ...]
+
+
+_Row = list[Span]  # spans sharing a baseline, left to right
+
+
+def _top_to_bottom(spans: Iterable[Span]) -> list[Span]:
+    # A total order (every field takes part) so equal multisets of spans sort equally.
+    return sorted(spans, key=lambda s: (-s.y, s.x, s.size, s.text))
+
+
+def _rows(spans: Iterable[Span]) -> list[_Row]:
+    """Group spans into rows top to bottom, each row left to right."""
+    rows: list[_Row] = []
+    for span in _top_to_bottom(spans):
+        if rows:
+            above = rows[-1][-1]
+            if above.y - span.y <= _ROW_TOLERANCE * min(above.size, span.size):
+                rows[-1].append(span)
+                continue
+        rows.append([span])
+    return [sorted(row, key=lambda s: (s.x, -s.y, s.size, s.text)) for row in rows]
+
+
+def _row_y(row: _Row) -> float:
+    return max(span.y for span in row)
+
+
+def _row_text(row: _Row) -> str:
+    return clean_line(" ".join(span.text for span in row))
+
+
+def _split_title(rows: list[_Row]) -> tuple[str | None, list[_Row]]:
+    """The title (one or two rows in the largest face) and the rows that remain."""
+    top = max(span.size for row in rows for span in row)
+    starts = [i for i, row in enumerate(rows) if all(span.size == top for span in row)]
+    if not starts:
+        return None, rows
+    start = starts[0]
+    end = start + 1
+    if (
+        end in starts
+        and _row_y(rows[start]) - _row_y(rows[end]) <= _TITLE_JOIN * top
+    ):
+        end += 1
+    rest = rows[:start] + rows[end:]
+    others = [span.size for row in rest for span in row]
+    if others:
+        if top < _TITLE_RATIO * max(others):
+            return None, rows
+    elif len(rows) != 1:
+        return None, rows
+    return clean_line(" ".join(_row_text(row) for row in rows[start:end])), rest
+
+
+def _columns(spans: Iterable[Span], page_width: float) -> list[list[Span]]:
+    """Single-linkage clusters of x-starts, left to right."""
+    gap = _COLUMN_GAP * page_width
+    columns: list[list[Span]] = []
+    previous_x: float | None = None
+    for span in sorted(spans, key=lambda s: (s.x, -s.y, s.size, s.text)):
+        if previous_x is None or span.x - previous_x > gap:
+            columns.append([])
+        columns[-1].append(span)
+        previous_x = span.x
+    return columns
+
+
+def layout_page(spans: Iterable[Span], *, page_width: float, page_height: float) -> PageLayout:
+    """Title and column blocks of one page, independent of the order of ``spans``.
+
+    Spans whose ``clean_line`` text is empty are ignored. Every emitted line goes
+    through ``clean_line``. ``page_height`` is accepted with the page box for
+    symmetry; no rule depends on it (boilerplate is found by cross-page repetition in
+    ``parse_pdf``, not by margin position).
+    """
+    kept = [span for span in spans if clean_line(span.text)]
+    if not kept:
+        return PageLayout(title=None, blocks=())
+    title, body_rows = _split_title(_rows(kept))
+    blocks: list[TextBlock] = []
+    for column in _columns((span for row in body_rows for span in row), page_width):
+        lines = [text for text in (_row_text(row) for row in _rows(column)) if text]
+        if lines:
+            blocks.append(TextBlock(lines=tuple(lines)))
+    return PageLayout(title=title, blocks=tuple(blocks))
+
+
+# --- PDF: the file -------------------------------------------------------------------------
+
+_DIGITS = re.compile(r"\d+")
+_Matrix = Sequence[float]  # a PDF affine matrix [a b c d e f]
+
+
+def _compose(tm: _Matrix, cm: _Matrix) -> tuple[float, float, float]:
+    """Text-space origin and unit height of ``tm`` x ``cm``: ``(x, y, scale)``.
+
+    pypdf hands the visitor the raw text matrix and the current transformation
+    separately; exporters that draw in a scaled ``cm`` (PowerPoint, Cairo) put the
+    real size in the matrices rather than in ``Tf``.
+    """
+    x = tm[4] * cm[0] + tm[5] * cm[2] + cm[4]
+    y = tm[4] * cm[1] + tm[5] * cm[3] + cm[5]
+    c = tm[2] * cm[0] + tm[3] * cm[2]
+    d = tm[2] * cm[1] + tm[3] * cm[3]
+    return x, y, math.hypot(c, d)
+
+
+def _page_spans(page: PageObject) -> list[Span]:
+    spans: list[Span] = []
+
+    def visit(text: str, cm: _Matrix, tm: _Matrix, font: object, font_size: float) -> None:
+        text = text.rstrip("\n")  # pypdf appends one at every line break it detects
+        if not text.strip():
+            return
+        x, y, scale = _compose(tm, cm)
+        size = float(font_size) * scale
+        spans.append(Span(x=x, y=y, size=size if size > 0 else float(font_size), text=text))
+
+    page.extract_text(visitor_text=visit)
+    return spans
+
+
+def _boilerplate(pages: Sequence[Sequence[Span]]) -> set[str]:
+    """Digit-normalised span texts on more than half the pages of a deck of >= 2."""
+    if len(pages) < 2:
+        return set()
+    counts = Counter(key for page in pages for key in {_normalised(span) for span in page})
+    return {key for key, n in counts.items() if n > len(pages) / 2}
+
+
+def _normalised(span: Span) -> str:
+    return _DIGITS.sub("#", clean_line(span.text))
+
+
+def parse_pdf(path: Path) -> Deck:
+    """Read a ``.pdf`` into a ``Deck``: one slide per page, title and column blocks.
+
+    Running headers and footers - any span whose digit-normalised text recurs on more
+    than half the pages (``Lecture 1 - slide 3 / 12`` and ``... 4 / 12`` are the same
+    line) - are dropped before layout; the rule needs at least two pages. PDFs carry
+    no speaker notes (``notes`` is ``None``); images are P2-03. Raises
+    ``DeckParseError`` for a file pypdf cannot read or decrypt with the empty
+    password; lets ``FileNotFoundError`` through.
+    """
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    try:
+        reader = PdfReader(str(path))
+        if reader.is_encrypted and reader.decrypt("") == PasswordType.NOT_DECRYPTED:
+            raise DeckParseError(path, ValueError("password-protected PDF"))
+        pages = [
+            (_page_spans(page), float(page.mediabox.width), float(page.mediabox.height))
+            for page in reader.pages
+        ]
+    except (PyPdfError, DependencyError) as exc:
+        raise DeckParseError(path, exc) from exc
+
+    recurring = _boilerplate([spans for spans, _, _ in pages])
+    slides: list[Slide] = []
+    for number, (spans, width, height) in enumerate(pages, start=1):
+        layout = layout_page(
+            (span for span in spans if _normalised(span) not in recurring),
+            page_width=width,
+            page_height=height,
+        )
+        slides.append(
+            Slide(
+                number=number,
+                title=layout.title,
+                blocks=layout.blocks,
+                notes=None,
+                image_ids=(),
+            )
+        )
+    return Deck(source=path.as_posix(), slides=tuple(slides), assets=())
+
+
 # --- the composed stage ------------------------------------------------------------
 
-_PARSERS: dict[str, Callable[[Path], Deck]] = {".pptx": parse_pptx}
+_PARSERS: dict[str, Callable[[Path], Deck]] = {".pptx": parse_pptx, ".pdf": parse_pdf}
 
 
 def ingest_slides(path: Path) -> Deck:
     """Plan §3 stage 2 end to end: read ``path`` and parse by suffix.
 
-    ``.pptx`` here; P2-02 registers ``.pdf`` and P2-03 adds keyword-only image knobs.
+    ``.pptx`` and ``.pdf``; P2-03 adds keyword-only image knobs.
     Raises ``ValueError`` for any other suffix, ``FileNotFoundError`` for a missing
     file, ``DeckParseError`` for a file that is not a deck.
     """

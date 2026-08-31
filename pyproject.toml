@@ -4,7 +4,9 @@ version = "0.0.1"
 description = "Turn a week of lecture videos, slides and captions into structured study notes."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["pydantic>=2", "python-pptx>=1.0"]
+# Pillow is not listed: pypdf's image decoding (P2-03) needs it, and it arrives at
+# runtime as a dependency of python-pptx.
+dependencies = ["pydantic>=2", "python-pptx>=1.0", "pypdf>=6"]
 
 [project.scripts]
 lecturenotes = "lecturenotes.cli:main"
@@ -17,7 +19,7 @@ dev = [
     "import-linter",
     "hypothesis",
 ]
-fixtures = ["reportlab", "pypdf", "Pillow"]
+fixtures = ["reportlab", "Pillow"]
 
 [build-system]
 requires = ["hatchling"]
