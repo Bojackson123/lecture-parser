@@ -98,3 +98,16 @@ ticket is where they live, and it is tests-first.
 - `dedupe_rolling` is a separate public function rather than a flag on the parser so
   the `--dry-run` tooling in Phase 5 can show before/after when a lecture's captions
   look wrong.
+- **Strip until nothing overlaps, not once.** A single "largest `k`" strip is not
+  idempotent on degenerate repeated text: prev `(a, b)`, cur `(b, a, b, c)` strips
+  `k = 1` to `(a, b, c)`, which still overlaps `(a, b)`, so a second pass would strip
+  again. `dedupe_rolling` therefore repeats the largest-`k` strip until the remainder
+  has no overlap with the surviving predecessor — equivalently, it drops the *shortest*
+  prefix of `cur` whose remainder does not overlap `prev`. On real rolling captions
+  this is exactly one strip (verified on the fixture); it only differs when a line
+  repeats within a cue and across the boundary, where the input is ambiguous anyway.
+  Idempotence is what the Phase 1 done-criterion in `tickets/README.md` asks for, and
+  it is what lets `--dry-run` tooling (Phase 5) show a stable before/after.
+- Closed 2026-08-31. Shared hypothesis strategies moved to `tests/ingest/strategies.py`
+  (`cue_lists`, `LINE`, `WORD_CHARS`, `MAX_MS`) so P1-01/P1-02/P1-03 property modules
+  import one definition.

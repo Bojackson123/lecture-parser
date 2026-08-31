@@ -25,6 +25,7 @@ __all__ = [
     "CaptionParseError",
     "Cue",
     "Segment",
+    "dedupe_rolling",
     "format_timestamp",
     "parse_srt",
     "parse_vtt",
@@ -208,3 +209,48 @@ def parse_srt(text: str) -> list[Cue]:
         if cue is not None:
             cues.append(cue)
     return cues
+
+
+# --- rolling-caption dedupe --------------------------------------------------------
+
+
+def _overlap(prev: tuple[str, ...], cur: tuple[str, ...]) -> int:
+    """Largest ``k`` such that the last ``k`` lines of ``prev`` are the first ``k`` of ``cur``."""
+    for k in range(min(len(prev), len(cur)), 0, -1):
+        if prev[-k:] == cur[:k]:
+            return k
+    return 0
+
+
+def dedupe_rolling(cues: list[Cue]) -> list[Cue]:
+    """Collapse YouTube-style rolling captions to one copy of every line.
+
+    Rolling exporters make each cue re-show the previous cue's last line(s) before its
+    new text. For each cue, the lines that overlap the *surviving* cue before it are
+    dropped, and every surviving line keeps the span of the cue it first appeared in.
+    A cue with nothing left is dropped and its predecessor's ``end_s`` extended over
+    it — the words were on screen that long, so the anchor should say so.
+
+    Lines are compared by exact equality (no case folding, no punctuation stripping)
+    and only against the immediate neighbour; a line that recurs ten cues later is the
+    lecturer repeating themselves, which later phases should see. Stripping repeats
+    until the remainder no longer overlaps its predecessor — on real rolling captions
+    that is one step; on degenerate repeated text it is what makes the function a fixed
+    point of itself (``dedupe_rolling(dedupe_rolling(x)) == dedupe_rolling(x)``).
+    """
+    out: list[Cue] = []
+    for cur in cues:
+        if not out:
+            out.append(cur)
+            continue
+        prev = out[-1]
+        lines = cur.lines
+        while lines and (k := _overlap(prev.lines, lines)):
+            lines = lines[k:]
+        if not lines:
+            out[-1] = prev.model_copy(update={"end_s": cur.end_s})
+        elif lines == cur.lines:
+            out.append(cur)
+        else:
+            out.append(Cue(start_s=cur.start_s, end_s=cur.end_s, lines=lines))
+    return out
