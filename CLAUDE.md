@@ -61,12 +61,14 @@ prompt.
 - `model/` imports nothing else in the package.
 - `render/` never imports `ingest/`.
 
-import-linter enforces these (contracts land in P0-04 and run from `pytest` and
-`uv run lint-imports` from then on).
+import-linter enforces these: the contracts live in `pyproject.toml`
+(`[tool.importlinter]`) and `tests/test_boundaries.py` runs `lint-imports` from inside
+`pytest`, so a violation fails the ordinary test run, not only `uv run lint-imports`.
 
 ## Checks
 
 ```
+uv sync --all-groups
 uv run pytest
 uv run ruff check .
 uv run mypy

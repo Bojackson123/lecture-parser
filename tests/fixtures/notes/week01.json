@@ -1,0 +1,405 @@
+{
+  "id": "cs-rl-101-w01",
+  "course": "CS-RL-101",
+  "week_number": 1,
+  "lectures": [
+    {
+      "id": "lec01",
+      "title": "MDPs and the Bellman Equation",
+      "overview": "Introduces Markov decision processes, derives the Bellman optimality equation from their four ingredients, and turns it into the value iteration algorithm. A board-work detour on a dice game motivates solving the last decision first.",
+      "objectives": [
+        "Name the four ingredients of an MDP and the role of the discount factor.",
+        "Write the Bellman optimality equation and explain why it is recursive.",
+        "Run one sweep of value iteration by hand and state its stopping rule."
+      ],
+      "source": {
+        "video_url": "https://example.edu/cs-rl-101/week01/lecture01.mp4",
+        "deck_path": "tests/fixtures/decks/lecture01.pdf",
+        "caption_path": "tests/fixtures/captions/lecture01.vtt"
+      },
+      "topics": [
+        {
+          "id": "lec01:s1-1",
+          "heading": "Markov decision processes",
+          "anchor": {
+            "start_s": 1.0,
+            "end_s": 149.0,
+            "slides": {
+              "start": 1,
+              "end": 1
+            }
+          },
+          "body": [
+            {
+              "type": "prose",
+              "text": "Sequential decision making starts with a Markov decision process. An MDP is fully specified by four ingredients; the Bellman equation later in the lecture is nothing more than these four written down recursively."
+            },
+            {
+              "type": "bullet_list",
+              "items": [
+                {
+                  "text": "States $s \\in S$ — everything the agent needs to know right now",
+                  "children": []
+                },
+                {
+                  "text": "Actions $a \\in A$ — the choices available in each state",
+                  "children": []
+                },
+                {
+                  "text": "Reward $R(s, a)$ — a number received for taking $a$ in $s$",
+                  "children": [
+                    {
+                      "text": "Immediate and given; not to be confused with value",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "text": "Transition function $T(s, a, s')$ — where you land after each action",
+                  "children": []
+                },
+                {
+                  "text": "Discount factor $\\gamma \\in [0, 1)$ — how much later rewards count",
+                  "children": [
+                    {
+                      "text": "$\\gamma \\to 0$: myopic, only the next reward counts",
+                      "children": []
+                    },
+                    {
+                      "text": "$\\gamma \\to 1$: far-sighted, but sums may diverge",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "definition",
+              "term": "Markov property",
+              "definition": "The next state depends only on the current state and action, not on the history that led there."
+            },
+            {
+              "type": "callout",
+              "kind": "PITFALL",
+              "text": "Reward vs value: the reward is the number you get right now; the value is the total discounted reward you expect from here on. Students mix these up every year."
+            }
+          ],
+          "cards": [
+            {
+              "front": "What are the four ingredients of an MDP?",
+              "back": "States, actions, rewards, and a transition function.",
+              "tags": [
+                "mdp"
+              ]
+            },
+            {
+              "front": "What does the discount factor gamma control?",
+              "back": "How much later rewards count relative to immediate ones.",
+              "tags": [
+                "mdp",
+                "discounting"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "lec01:t151",
+          "heading": "Board work: the reroll game",
+          "anchor": {
+            "start_s": 151.0,
+            "end_s": 268.0,
+            "slides": null
+          },
+          "body": [
+            {
+              "type": "prose",
+              "text": "Away from the slides: roll a fair six-sided die and receive the face value in dollars. The game is worth its expected payout, 3.5, so paying anything less is a bargain."
+            },
+            {
+              "type": "prose",
+              "text": "Now allow one reroll. The trick is to value the second roll first, because its worth is already known: keep the first roll only if it beats 3.5, i.e. a 4, 5 or 6."
+            },
+            {
+              "type": "equation",
+              "latex": "\\mathbb{E}[\\text{reroll game}] = \\tfrac{1}{2}\\cdot\\tfrac{4+5+6}{3} + \\tfrac{1}{2}\\cdot 3.5 = 4.25",
+              "label": "reroll-value"
+            },
+            {
+              "type": "callout",
+              "kind": "ASIDE",
+              "text": "This is dynamic programming in miniature: solve the last decision first, then use its value to make the earlier one. The same idea drives value iteration."
+            }
+          ],
+          "cards": [
+            {
+              "front": "With one optional reroll of a fair die, which first rolls do you keep?",
+              "back": "4, 5 or 6 — anything that beats the 3.5 expected value of rerolling.",
+              "tags": [
+                "dynamic-programming"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "lec01:s2-2",
+          "heading": "The Bellman equation",
+          "anchor": {
+            "start_s": 271.0,
+            "end_s": 419.0,
+            "slides": {
+              "start": 2,
+              "end": 2
+            }
+          },
+          "body": [
+            {
+              "type": "prose",
+              "text": "The value of a state is the immediate reward plus gamma times the expected value of wherever you land next. The equation is recursive: the value on the left shows up again on the right-hand side."
+            },
+            {
+              "type": "equation",
+              "latex": "V(s) = \\max_a \\Big[ R(s, a) + \\gamma \\sum_{s'} T(s, a, s')\\, V(s') \\Big]",
+              "label": "bellman"
+            },
+            {
+              "type": "table",
+              "header": [
+                "Term",
+                "Meaning"
+              ],
+              "rows": [
+                [
+                  "$V(s)$",
+                  "value of state $s$"
+                ],
+                [
+                  "$\\max_a$",
+                  "best action available"
+                ],
+                [
+                  "$\\sum_{s'} T(s, a, s')$",
+                  "expectation over next states"
+                ],
+                [
+                  "$\\gamma$",
+                  "discount factor"
+                ]
+              ]
+            },
+            {
+              "type": "callout",
+              "kind": "EXAM",
+              "text": "Write the Bellman equation down properly, with the max over actions and the sum over next states. This will be on the exam."
+            },
+            {
+              "type": "quote",
+              "text": "Once you believe the Bellman equation has a unique fixed point, everything else in this lecture follows.",
+              "attribution": "Lecturer, on the principle of optimality"
+            }
+          ],
+          "cards": [
+            {
+              "front": "State the Bellman optimality equation for $V(s)$.",
+              "back": "$V(s) = \\max_a \\Big[ R(s, a) + \\gamma \\sum_{s'} T(s, a, s')\\, V(s') \\Big]$",
+              "tags": [
+                "bellman",
+                "exam"
+              ]
+            },
+            {
+              "front": "Why is the Bellman equation called recursive?",
+              "back": "The value function $V$ appears on both sides of the equation.",
+              "tags": [
+                "bellman"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "lec01:s3-3",
+          "heading": "Value iteration",
+          "anchor": {
+            "start_s": 421.0,
+            "end_s": 545.0,
+            "slides": {
+              "start": 3,
+              "end": 3
+            }
+          },
+          "body": [
+            {
+              "type": "prose",
+              "text": "Value iteration turns the equation into an update rule: start with every value at zero and sweep over all the states, applying the update once per state."
+            },
+            {
+              "type": "code_block",
+              "code": "def value_iteration(mdp, gamma, eps):\n    V = {s: 0.0 for s in mdp.states}\n    while True:\n        delta = 0.0\n        for s in mdp.states:\n            best = max(\n                mdp.R(s, a)\n                + gamma * sum(p * V[s2] for s2, p in mdp.T(s, a))\n                for a in mdp.actions(s)\n            )\n            delta = max(delta, abs(best - V[s]))\n            V[s] = best\n        if delta < eps:\n            return V\n",
+              "language": "python"
+            },
+            {
+              "type": "figure",
+              "asset_id": "fig-value-iteration-convergence",
+              "caption": "Maximum change between successive sweeps on a small grid world; it falls geometrically with rate gamma."
+            },
+            {
+              "type": "prose",
+              "text": "When the biggest change falls below the tolerance epsilon, stop and read off the greedy policy by picking the best action in every state."
+            },
+            {
+              "type": "callout",
+              "kind": "UNCERTAIN",
+              "text": "The lecturer said the error 'shrinks by a factor of gamma every time'. That is the contraction bound; the observed per-sweep ratio can be smaller."
+            }
+          ],
+          "cards": []
+        }
+      ],
+      "glossary": [
+        {
+          "type": "definition",
+          "term": "Discount factor",
+          "definition": "$\\gamma \\in [0, 1)$; weights a reward $k$ steps ahead by $\\gamma^k$."
+        },
+        {
+          "type": "definition",
+          "term": "Value function",
+          "definition": "$V(s)$: the expected total discounted reward starting from state $s$ and acting optimally."
+        },
+        {
+          "type": "definition",
+          "term": "Greedy policy",
+          "definition": "The policy that picks, in every state, the action maximising the Bellman bracket."
+        }
+      ],
+      "open_questions": [
+        "Why does the Bellman equation have exactly one fixed point for gamma < 1?",
+        "How many sweeps does value iteration need to reach a given epsilon?"
+      ],
+      "assets": [
+        {
+          "id": "fig-value-iteration-convergence",
+          "media_type": "image/png",
+          "source": "tests/fixtures/decks/value_iteration.png",
+          "alt": "Line plot of maximum value change per sweep, decaying geometrically"
+        }
+      ]
+    },
+    {
+      "id": "lec02",
+      "title": "Policies and Policy Iteration",
+      "overview": "Defines policies, derives the Bellman expectation equation for a fixed policy, and introduces policy iteration as an alternative to value iteration.",
+      "objectives": [
+        "Define a policy and the state-value function under a policy.",
+        "Explain the two steps of policy iteration and when it terminates."
+      ],
+      "source": {
+        "video_url": null,
+        "deck_path": "tests/fixtures/decks/lecture01.pdf",
+        "caption_path": "tests/fixtures/captions/lecture01.vtt"
+      },
+      "topics": [
+        {
+          "id": "lec02:s1-1",
+          "heading": "Policies and the state-value function",
+          "anchor": {
+            "start_s": 0.0,
+            "end_s": 180.0,
+            "slides": {
+              "start": 1,
+              "end": 1
+            }
+          },
+          "body": [
+            {
+              "type": "prose",
+              "text": "A policy $\\pi$ maps states to actions. Fixing a policy turns the MDP into a Markov chain with rewards, and the value of a state under that policy satisfies a linear version of last lecture's equation."
+            },
+            {
+              "type": "equation",
+              "latex": "V^{\\pi}(s) = R(s, \\pi(s)) + \\gamma \\sum_{s'} T(s, \\pi(s), s')\\, V^{\\pi}(s')",
+              "label": "bellman-expectation"
+            },
+            {
+              "type": "bullet_list",
+              "items": [
+                {
+                  "text": "No max: the action is chosen by $\\pi$, so the system is linear",
+                  "children": []
+                },
+                {
+                  "text": "Can be solved exactly by matrix inversion for small state spaces",
+                  "children": []
+                }
+              ]
+            }
+          ],
+          "cards": [
+            {
+              "front": "What distinguishes the Bellman expectation equation from the optimality equation?",
+              "back": "Expectation fixes the action via a policy and is linear; optimality has a max over actions.",
+              "tags": [
+                "bellman",
+                "policy"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "lec02:s2-3",
+          "heading": "Policy iteration",
+          "anchor": {
+            "start_s": 180.0,
+            "end_s": 420.0,
+            "slides": {
+              "start": 2,
+              "end": 3
+            }
+          },
+          "body": [
+            {
+              "type": "prose",
+              "text": "Policy iteration alternates two steps until the policy stops changing: evaluate the current policy, then improve it greedily."
+            },
+            {
+              "type": "table",
+              "header": [
+                "Step",
+                "What it does",
+                "Cost"
+              ],
+              "rows": [
+                [
+                  "Evaluate",
+                  "Solve $V^{\\pi}$ for the current $\\pi$",
+                  "One linear solve"
+                ],
+                [
+                  "Improve",
+                  "Set $\\pi(s) \\leftarrow \\arg\\max_a [\\cdot]$",
+                  "One sweep"
+                ]
+              ]
+            },
+            {
+              "type": "callout",
+              "kind": "EXAM",
+              "text": "Be able to compare policy iteration with value iteration: few expensive iterations versus many cheap ones."
+            }
+          ],
+          "cards": []
+        }
+      ],
+      "glossary": [
+        {
+          "type": "definition",
+          "term": "Policy",
+          "definition": "A mapping $\\pi: S \\to A$ from states to actions."
+        }
+      ],
+      "open_questions": [
+        "Does policy iteration always terminate in finitely many steps?"
+      ],
+      "assets": []
+    }
+  ]
+}

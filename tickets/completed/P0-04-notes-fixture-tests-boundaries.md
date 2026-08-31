@@ -130,3 +130,9 @@ machine-enforced via import-linter running inside `pytest`.
   `Renderer` protocol that does not exist yet; Phase 3 replaces it.
 - Fixture content should read like real notes (the plan's success criterion is
   "good enough to revise from"); it doubles as the target quality bar for Phase 5 prompts.
+- **Done 2026-08-31.** Negative check (Task 8) performed: with the bad import in
+  `model/notes.py`, `uv run lint-imports` exited 1 (`1 kept, 1 broken`) and
+  `uv run pytest tests/test_boundaries.py` failed; reverted cleanly.
+- The builder writes the snapshot with `newline="\n"` and prints via `sys.stdout.buffer`
+  as UTF-8 bytes, so the file and the `| diff` acceptance check are byte-identical on
+  Windows too (the console code page would otherwise mangle the em-dashes).

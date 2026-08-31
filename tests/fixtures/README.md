@@ -12,8 +12,16 @@ decks/make_deck.py          generator for the three files below (uv run --group 
 decks/lecture01.pdf         3 landscape pages, slide 2 two-column
 decks/lecture01.pptx        3 slides, speaker notes on every slide, PNG on slide 3
 decks/value_iteration.png   the figure embedded in both decks (1.4 KB)
+notes/week01.py             hand-written NoteWeek builder covering the whole IR (P0-04)
+notes/week01.json           its committed snapshot; regenerate with `--write`, never by hand
 test_fixtures_sanity.py     line counts, third-party readers, size caps
 ```
+
+The notes fixture is the *output* side of the same lecture: `notes/week01.py` builds a
+`NoteWeek` whose lecture 1 follows the slide → time map below, plus a second shorter
+lecture so renderers face the one-page-or-several decision (plan §7.3). Regenerate with
+`uv run python -m tests.fixtures.notes.week01 --write`; `notes/test_week01.py` fails
+until the snapshot matches the builder.
 
 Regenerate the decks with `uv run --group fixtures python tests/fixtures/decks/make_deck.py`.
 Output is byte-for-byte reproducible (fixed metadata, reportlab `invariant`, pinned zip

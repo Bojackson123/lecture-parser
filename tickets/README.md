@@ -13,21 +13,24 @@ Plan §6: *done when types instantiate; fixtures committed.*
 | [P0-01](completed/P0-01-repo-and-toolchain.md) | Repo, toolchain, package skeleton, CLAUDE.md | — | `uv sync` + pytest/ruff/mypy pass; `lecturenotes --version` works; initial commit exists |
 | [P0-02](completed/P0-02-model-types.md) | `model/` types + stable-ID helper | P0-01 | Every IR type instantiates and JSON round-trips; validators reject bad input; mypy strict clean |
 | [P0-03](completed/P0-03-source-fixtures.md) | Source fixtures (captions + deck) | P0-01 | 20-cue `.vtt`/`.srt` and 3-page `.pdf`/`.pptx` committed with a generator script and sanity tests |
-| [P0-04](P0-04-notes-fixture-tests-boundaries.md) | Hand-written `NoteWeek` fixture, test scaffolding, boundary enforcement | P0-02, P0-03 | `week01.json` snapshot committed; import-linter contracts enforced from `pytest` |
+| [P0-04](completed/P0-04-notes-fixture-tests-boundaries.md) | Hand-written `NoteWeek` fixture, test scaffolding, boundary enforcement | P0-02, P0-03 | `week01.json` snapshot committed; import-linter contracts enforced from `pytest` |
 
 **Suggested order:** P0-01 → (P0-02 and P0-03 in parallel, they are independent) → P0-04.
 
 ### Phase 0 done-gate
 
-All four tickets' acceptance criteria met, and from a clean checkout:
+- [x] All four tickets' acceptance criteria met (P0-04 closed Phase 0 on 2026-08-31).
+- [x] From a clean checkout:
 
 ```
 uv sync --all-groups
 uv run pytest && uv run ruff check . && uv run mypy && uv run lint-imports
 ```
 
-passes with the fixtures committed. At that point Phase 1 (caption ingest) can start;
-its tickets will be added to this index in a later session.
+passes with the fixtures committed.
+
+**Phase 0 is done.** Phase 1 (caption ingest) can start; its tickets will be added to
+this index in a later session.
 
 ## Ticket format
 

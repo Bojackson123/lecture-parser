@@ -33,3 +33,25 @@ plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.importlinter]
+root_package = "lecturenotes"
+
+[[tool.importlinter.contracts]]
+name = "model imports nothing internal"
+type = "forbidden"
+source_modules = ["lecturenotes.model"]
+forbidden_modules = [
+    "lecturenotes.ingest",
+    "lecturenotes.align",
+    "lecturenotes.generate",
+    "lecturenotes.render",
+    "lecturenotes.emit",
+    "lecturenotes.cli",
+]
+
+[[tool.importlinter.contracts]]
+name = "render never imports ingest"
+type = "forbidden"
+source_modules = ["lecturenotes.render"]
+forbidden_modules = ["lecturenotes.ingest"]
