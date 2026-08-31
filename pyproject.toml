@@ -1,0 +1,34 @@
+[project]
+name = "lecturenotes"
+version = "0.0.1"
+description = "Turn a week of lecture videos, slides and captions into structured study notes."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["pydantic>=2"]
+
+[project.scripts]
+lecturenotes = "lecturenotes.cli:main"
+
+[dependency-groups]
+dev = ["pytest", "ruff", "mypy", "import-linter"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["lecturenotes"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+strict = true
+files = ["lecturenotes"]
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
