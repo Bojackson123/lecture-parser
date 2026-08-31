@@ -4,7 +4,7 @@ version = "0.0.1"
 description = "Turn a week of lecture videos, slides and captions into structured study notes."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["pydantic>=2"]
+dependencies = ["pydantic>=2", "python-pptx>=1.0"]
 
 [project.scripts]
 lecturenotes = "lecturenotes.cli:main"
@@ -17,7 +17,7 @@ dev = [
     "import-linter",
     "hypothesis",
 ]
-fixtures = ["reportlab", "python-pptx", "pypdf", "Pillow"]
+fixtures = ["reportlab", "pypdf", "Pillow"]
 
 [build-system]
 requires = ["hatchling"]

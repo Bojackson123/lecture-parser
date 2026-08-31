@@ -40,8 +40,13 @@ def test_expected_fixture_has_3_slides(expected_deck: Deck) -> None:
     assert len(expected_deck.slides) == SLIDE_COUNT
 
 
-def test_pptx_ingests_to_the_hand_written_deck(decks_dir: Path, expected_deck: Deck) -> None:
-    actual = ingest_slides(decks_dir / "lecture01.pptx")
+def test_pptx_ingests_to_the_hand_written_deck(
+    repo_root: Path, expected_deck: Deck, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Open the path the fixture itself names (repo-relative, POSIX), from the repo root,
+    # so ``Deck.source`` is compared too and the test is cwd- and OS-independent.
+    monkeypatch.chdir(repo_root)
+    actual = ingest_slides(Path(expected_deck.source))
     assert actual == expected_deck, HAND_WRITTEN
     assert len(actual.slides) == SLIDE_COUNT
 

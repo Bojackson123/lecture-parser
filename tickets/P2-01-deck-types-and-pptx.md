@@ -175,8 +175,10 @@ to reconstruct: title placeholder, body placeholders in order, paragraphs, notes
 - **`Slide.number` is the 1-based position in the file, hidden slides included**, so a
   `SlideRange` in an anchor matches what a reader counts when they open the deck. Phase 4
   can skip `hidden` slides when aligning; it must not renumber.
-- **`Deck.source` is the path as given** so Phase 5 can fill `SourceRef.deck_path` without
-  re-deriving it.
+- **`Deck.source` is the path as given, in POSIX form** (`path.as_posix()`) so Phase 5 can
+  fill `SourceRef.deck_path` without re-deriving it, and so the expected-deck fixture and
+  any `--json` output are byte-identical on Windows and POSIX (`str(Path)` would put
+  backslashes in the Windows output and make the fixture platform-dependent).
 - **Ad-hoc decks are built with python-pptx inside the tests** rather than committed as
   files: they are small, exact, and readable in the test that uses them — the P0-03 rule
   ("add the case to the fixture") applies to cases that need the *lecture*, not to

@@ -90,9 +90,9 @@ def test_slide_numbers_are_file_positions_and_nothing_is_hidden(deck: Deck) -> N
     assert deck.recurring_image_ids == ()
 
 
-def test_source_is_the_path_as_given(decks_dir: Path) -> None:
+def test_source_is_the_path_as_given_in_posix_form(decks_dir: Path) -> None:
     path = decks_dir / "lecture01.pptx"
-    assert parse_pptx(path).source == str(path)
+    assert parse_pptx(path).source == path.as_posix()
 
 
 # --- ad-hoc decks ------------------------------------------------------------------
@@ -205,7 +205,7 @@ def test_garbage_bytes_raise_deck_parse_error_naming_the_file(tmp_path: Path) ->
         ("  padded  ", "padded"),
         ("-  -  twice", "- twice"),  # exactly one glyph is removed
         ("", ""),
-        ("- ", ""),
+        ("- ", "-"),  # a lone glyph has nothing after it, so it is content
     ],
 )
 def test_clean_line_table(raw: str, expected: str) -> None:
