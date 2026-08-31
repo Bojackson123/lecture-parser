@@ -164,3 +164,21 @@ committed, **hand-written** `tests/fixtures/captions/lecture01.segments.json` �
   README table is the source of truth; the JSON transcribes it.
 - **`ingest_captions` takes a `Path`, not text**, because the format is chosen by
   suffix; the text-level functions stay available for callers that already have a string.
+- **A buffer that gains no sentence keeps its start.** The task text says the
+  remainder after splitting takes `start_s = cue.start_s`; read literally, that would
+  move the start of an unpunctuated buffer forward on every cue and the 60 s cap would
+  never trigger (`cue.end_s - buffer.start_s` would only ever measure one cue). The
+  implementation resets the buffer's start to the current cue only when at least one
+  sentence was completed in it — then the remainder really did begin in that cue.
+  `test_unpunctuated_captions_are_cut_when_the_buffer_would_exceed_max_segment_s` and
+  `test_sentence_completed_in_a_later_cue_starts_where_the_buffer_started` pin both
+  halves of the rule.
+- **Suffix dispatch is case-insensitive** (`LECTURE01.VTT` works) and reads
+  `utf-8-sig`, so a BOM from a Windows exporter is invisible; both are tested.
+- Closed 2026-08-31 in two commits: the hand-written JSON, README cross-references and
+  all three test modules first (red, `ImportError` on `merge_sentences`), then the
+  implementation. `uv run pytest` → 186 passed, 1 skipped (the renderer-contract
+  scaffold); ruff, mypy and lint-imports clean. All four acceptance one-liners print
+  the expected values. `ruff format --check` flags `tests/fixtures/notes/test_week01.py`
+  and one other pre-existing file — unchanged by this ticket and not part of the
+  project's check list.

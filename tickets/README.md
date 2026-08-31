@@ -54,7 +54,7 @@ ingest_captions(path)  → [Segment]    P1-03   (parse → dedupe → merge, by 
 |---|---|---|---|
 | [P1-01](completed/P1-01-caption-parsing-and-tags.md) | `Cue`/`Segment` types, VTT + SRT parsing, tag stripping | P0-04 | Both fixtures parse to the *same* 20 clean cues; `strip_tags` handles the no-whitespace timing-tag case; hypothesis round-trip passes |
 | [P1-02](completed/P1-02-rolling-caption-dedupe.md) | Rolling-caption dedupe | P1-01 | Fixture cues 1–6 collapse to seven lines with original timings; cues 7–20 untouched; dedupe is idempotent under hypothesis |
-| [P1-03](P1-03-sentence-merge-and-segments.md) | Sentence-boundary merge, `ingest_captions()`, expected-segments snapshot | P1-02 | Hand-written `lecture01.segments.json` (22 segments) equals `ingest_captions()` on both VTT and SRT |
+| [P1-03](completed/P1-03-sentence-merge-and-segments.md) | Sentence-boundary merge, `ingest_captions()`, expected-segments snapshot | P1-02 | Hand-written `lecture01.segments.json` (22 segments) equals `ingest_captions()` on both VTT and SRT |
 | [P1-04](P1-04-captions-command-and-done-gate.md) | `lecturenotes captions FILE` inspection command + Phase 1 done-gate | P1-03 | `lecturenotes captions <vtt>` prints 22 lines; done-gate ticked; tickets moved to `completed/`. *Optional* — see the ticket |
 
 **Suggested order:** strictly P1-01 → P1-02 → P1-03 → P1-04; each function consumes

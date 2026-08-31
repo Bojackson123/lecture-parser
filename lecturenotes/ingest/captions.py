@@ -18,6 +18,7 @@ from __future__ import annotations
 import html
 import re
 from collections.abc import Iterator
+from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -27,6 +28,8 @@ __all__ = [
     "Segment",
     "dedupe_rolling",
     "format_timestamp",
+    "ingest_captions",
+    "merge_sentences",
     "parse_srt",
     "parse_vtt",
     "strip_tags",
@@ -254,3 +257,94 @@ def dedupe_rolling(cues: list[Cue]) -> list[Cue]:
         else:
             out.append(Cue(start_s=cur.start_s, end_s=cur.end_s, lines=lines))
     return out
+
+
+# --- sentence merge ----------------------------------------------------------------
+
+# One or more of . ? ! (so "..." and "?!" are one terminator), optional closing quote or
+# bracket, then whitespace or end of text. "3.5" and "e.g." mid-sentence do not match;
+# "e.g. this" does — accepted for v1, see the P1-03 ticket.
+_SENTENCE_END = re.compile(r"""[.?!]+["')\]]*(?=\s|$)""")
+
+
+def _split_sentences(text: str) -> tuple[list[str], str]:
+    """Complete sentences (stripped, non-empty) and the unterminated remainder."""
+    sentences: list[str] = []
+    pos = 0
+    for match in _SENTENCE_END.finditer(text):
+        if sentence := text[pos : match.end()].strip():
+            sentences.append(sentence)
+        pos = match.end()
+    return sentences, text[pos:].strip()
+
+
+def merge_sentences(
+    cues: list[Cue], *, max_gap_s: float = 5.0, max_segment_s: float = 60.0
+) -> list[Segment]:
+    """Join deduped cues into sentence-bounded segments.
+
+    Cue lines are space-joined into an open buffer and every complete sentence
+    (terminated by ``.``, ``?`` or ``!`` followed by whitespace or end of text) is
+    emitted as a segment. A segment's span is the **union of the cues that contributed
+    to it**: two sentences from one cue share that cue's span, and a sentence that
+    spans cues runs from the first cue's start to the last cue's end. Nothing is
+    interpolated within a cue — the anchor must point where the words really are —
+    so spans may overlap and later phases must not assume segments partition time.
+
+    Two knobs keep unpunctuated captions from swallowing the lecture: an open buffer
+    is flushed as-is when the next cue starts more than ``max_gap_s`` after the
+    previous one ended (a pause is a topic break, not a continuing sentence), or when
+    taking the next cue would make the buffer span more than ``max_segment_s``. The
+    remainder after the last cue is flushed with the last cue's end. Pure; the input
+    list is not modified.
+    """
+    out: list[Segment] = []
+    buffer = ""  # text without a terminator yet
+    buffer_start_s = 0.0  # start of the first cue in ``buffer``
+    last_end_s = 0.0  # end of the most recent cue
+
+    def flush() -> None:
+        nonlocal buffer
+        out.append(Segment(start_s=buffer_start_s, end_s=last_end_s, text=buffer))
+        buffer = ""
+
+    for cue in cues:
+        if buffer and cue.start_s - last_end_s > max_gap_s:
+            flush()
+        if buffer and cue.end_s - buffer_start_s > max_segment_s:
+            flush()
+        if buffer:
+            buffer = f"{buffer} {' '.join(cue.lines)}"
+        else:
+            buffer = " ".join(cue.lines)
+            buffer_start_s = cue.start_s
+        sentences, buffer = _split_sentences(buffer)
+        out.extend(Segment(start_s=buffer_start_s, end_s=cue.end_s, text=s) for s in sentences)
+        if sentences:
+            # Whatever is left over began in this cue; an untouched buffer keeps its start.
+            buffer_start_s = cue.start_s
+        last_end_s = cue.end_s
+    if buffer:
+        flush()
+    return out
+
+
+# --- the composed stage ------------------------------------------------------------
+
+_PARSERS = {".vtt": parse_vtt, ".srt": parse_srt}
+
+
+def ingest_captions(path: Path, **merge_kwargs: float) -> list[Segment]:
+    """Plan §3 stage 1 end to end: read ``path``, parse by suffix, dedupe, merge.
+
+    ``merge_kwargs`` (``max_gap_s``, ``max_segment_s``) are forwarded to
+    ``merge_sentences`` so callers can tune the knobs without re-composing the
+    pipeline. Raises ``ValueError`` for a suffix other than ``.vtt`` / ``.srt``,
+    ``FileNotFoundError`` for a missing file, ``CaptionParseError`` for bad structure.
+    """
+    suffix = path.suffix.lower()
+    parser = _PARSERS.get(suffix)
+    if parser is None:
+        raise ValueError(f"unsupported caption format: {suffix!r} (expected .vtt or .srt)")
+    cues = parser(path.read_text(encoding="utf-8-sig"))
+    return merge_sentences(dedupe_rolling(cues), **merge_kwargs)
