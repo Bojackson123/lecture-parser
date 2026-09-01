@@ -13,8 +13,10 @@ decks/make_deck.py          generator for the three files below (uv run --group 
 decks/lecture01.pdf         3 landscape pages, slide 2 two-column
 decks/lecture01.pptx        3 slides, speaker notes on every slide, PNG on slide 3
 decks/lecture01.deck.json   the PPTX deck as `Deck` JSON, hand-written (P2-01); the PDF yields
-                            the same titles and blocks with `notes: null` (P2-02)
-decks/value_iteration.png   the figure embedded in both decks (1.4 KB)
+                            the same titles and blocks with `notes: null` (P2-02) and the same
+                            figure re-encoded, so with a different id (P2-03)
+decks/value_iteration.png   the figure embedded in both decks (1.4 KB; PPTX embeds it verbatim,
+                            the PDF re-encodes it)
 notes/week01.py             hand-written NoteWeek builder covering the whole IR (P0-04)
 notes/week01.json           its committed snapshot; regenerate with `--write`, never by hand
 test_fixtures_sanity.py     line counts, third-party readers, size caps
@@ -89,7 +91,7 @@ yield the same 20 cues after tag stripping.
 |---|---|---|---|
 | 1 | Markov Decision Processes | Single column, five bullets; PPTX speaker notes | Title, then the five bullets in order. |
 | 2 | The Bellman Equation | **Two columns.** In the PDF, both columns are drawn row by row at the *same y-coordinates*, so naive top-to-bottom extraction (e.g. `pypdf` `extract_text()`) interleaves them: `Equation / Intuition / V(s) = … / Value = … / …`. In the PPTX the columns are the two body placeholders of the *Two Content* layout. Speaker notes. | **Left column fully** (`Equation`, the equation line, four term rows), **then the right column** (`Intuition` + five bullets). The PDF needs x-clustering (P2-02: single-linkage on x-starts with a 0.15 × page-width gap threshold, so indents chain into their column and the 390-pt gap splits); the PPTX gives the right order from placeholder order. |
-| 3 | Value Iteration | Single column (four numbered steps; step 2 wraps onto two lines in the PDF) plus an **image** (`value_iteration.png`, 240×150 palette PNG) on the right; the PPTX body placeholder is narrowed to make room. Speaker notes. | Title, the steps in order, and one `MediaAsset` (`image/png`) for the figure; the figure contains no extractable text. |
+| 3 | Value Iteration | Single column (four numbered steps; step 2 wraps onto two lines in the PDF) plus an **image** (`value_iteration.png`, 240×150 palette PNG) on the right; the PPTX body placeholder is narrowed to make room. Speaker notes. | Title, the steps in order, and one `MediaAsset` (`image/png`) for the figure; the figure contains no extractable text. The PPTX picture is the committed PNG byte-for-byte (`img-a63ae9b7dc5e9397`); the PDF figure comes back from pypdf re-encoded (RGB, ~1.2 KB) with a different id, 240 × 150 either way (P2-03). |
 | — | footer | `Lecture 1 - slide N / 3` at the bottom right of every PDF page, 10 pt | Dropped as boilerplate: a digit-normalised line (`Lecture # - slide # / #`) that occurs on more than half the pages of a deck with at least two pages. A one-page deck keeps it. |
 
 Speaker notes (PPTX only) are 2–3 sentences per slide and are Phase 2 test data; slide
@@ -98,7 +100,10 @@ second, slide-side source for the same callout.
 
 `decks/lecture01.deck.json` is the *expected output* of Phase 2 for the PPTX:
 `ingest_slides()` must equal it exactly, and the PDF must yield the same titles and blocks
-(P2-02). It was transcribed by hand from the constants in `make_deck.py` and the decks
+(P2-02) and, up to `notes: null` and the re-encoded figure's bytes, the same deck (P2-03).
+Decorative images (under 32 px on either side) and a picture recurring on more than half
+of ≥ 3 slides never reach `image_ids`; the fixture has neither, so those rules are tested
+on ad-hoc decks in `tests/ingest/test_images.py`. It was transcribed by hand from the constants in `make_deck.py` and the decks
 table above and is never regenerated from the code under test; if an extraction rule
 changes on purpose, edit the table, then the JSON. Image ids are content hashes
 (`img-` + 16 hex of sha256) and image bytes are stored as base64 (P2-01 decision).

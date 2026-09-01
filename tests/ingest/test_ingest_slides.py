@@ -1,9 +1,10 @@
-"""The Phase 2 done-gate (plan §6): PPTX half (P2-01) and PDF half (P2-02).
+"""The Phase 2 done-gate (plan §6): PPTX half (P2-01) and PDF half (P2-02, P2-03).
 
 ``ingest_slides()`` on the PPTX fixture must equal the **hand-written**
-``tests/fixtures/decks/lecture01.deck.json``, and on the PDF fixture must yield the
-same slide numbers, titles and blocks (notes are ``None``; whole-deck equality waits
-for P2-03's PDF images). The JSON transcribes the constants in
+``tests/fixtures/decks/lecture01.deck.json``, and on the PDF fixture must equal it up
+to two substitutions a PDF cannot avoid: notes are ``None`` (PDFs carry none) and the
+figure's bytes - hence its id - differ (pypdf re-encodes the image stream, P2-03
+decision). The JSON transcribes the constants in
 ``tests/fixtures/decks/make_deck.py`` and the decks table in ``tests/fixtures/README.md``;
 it is never regenerated from the code under test, or the snapshot would only prove that
 the code agrees with itself.
@@ -61,6 +62,42 @@ def test_pdf_ingests_to_the_hand_written_titles_and_blocks(
         (s.number, s.title, s.blocks) for s in expected_deck.slides
     ], HAND_WRITTEN
     assert all(slide.notes is None for slide in pdf.slides)
+
+
+def _without_images(deck: Deck) -> Deck:
+    return deck.model_copy(
+        update={
+            "assets": (),
+            "slides": tuple(s.model_copy(update={"image_ids": ()}) for s in deck.slides),
+        }
+    )
+
+
+def test_pdf_ingests_to_the_hand_written_deck_up_to_notes_and_the_reencoded_figure(
+    repo_root: Path, expected_deck: Deck, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The PDF half of the done-gate. Two deliberate substitutions on the expected side:
+    every ``notes`` becomes ``None``, and the single asset is compared by
+    ``(media_type, width, height)`` with slide 3's ``image_ids`` compared by length -
+    the PDF figure is re-encoded by pypdf, so its bytes and id differ."""
+    monkeypatch.chdir(repo_root)
+    pdf_path = Path(expected_deck.source).with_suffix(".pdf")
+    actual = ingest_slides(pdf_path)
+    expected = expected_deck.model_copy(
+        update={
+            "source": pdf_path.as_posix(),
+            "slides": tuple(s.model_copy(update={"notes": None}) for s in expected_deck.slides),
+        }
+    )
+    assert _without_images(actual) == _without_images(expected), HAND_WRITTEN
+    assert [(a.media_type, a.width, a.height) for a in actual.assets] == [
+        (a.media_type, a.width, a.height) for a in expected.assets
+    ], HAND_WRITTEN
+    assert [len(s.image_ids) for s in actual.slides] == [
+        len(s.image_ids) for s in expected.slides
+    ], HAND_WRITTEN
+    assert actual.slides[2].image_ids == (actual.assets[0].id,)
+    assert actual.recurring_image_ids == expected.recurring_image_ids == ()
 
 
 def test_pdf_and_pptx_agree_on_titles_and_blocks(decks_dir: Path) -> None:
