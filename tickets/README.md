@@ -101,10 +101,10 @@ lecturenotes slides FILE                            P2-04   (inspection command;
 
 | ID | Title | Depends on | Done when |
 |---|---|---|---|
-| [P2-01](P2-01-deck-types-and-pptx.md) | `Deck`/`Slide` types, expected-deck fixture, PPTX parsing, `ingest_slides()` | P1-04 | Hand-written `lecture01.deck.json` equals `ingest_slides()` on the PPTX; ad-hoc python-pptx cases pass; python-pptx is a runtime dep |
-| [P2-02](P2-02-pdf-layout-and-reading-order.md) | PDF layout: columns in reading order, title, boilerplate; `parse_pdf` | P2-01 | PDF titles + blocks equal the PPTX deck's; slide 2 reads left column then right; footer gone; layout property tests pass |
-| [P2-03](P2-03-slide-images-and-assets.md) | Slide images and assets: PDF images, size filter, recurring-image rule, groups | P2-02 | Both formats yield one 240×150 `image/png` on slide 3; logo-on-every-slide and tiny-image ad-hoc cases pass; PDF full-deck test passes |
-| [P2-04](P2-04-slides-command-and-done-gate.md) | `lecturenotes slides FILE` inspection command + Phase 2 done-gate | P2-03 | `slides <pdf>` prints 3 slides; done-gate ticked; tickets moved to `completed/`; `CLAUDE.md` invariants added |
+| [P2-01](completed/P2-01-deck-types-and-pptx.md) | `Deck`/`Slide` types, expected-deck fixture, PPTX parsing, `ingest_slides()` | P1-04 | Hand-written `lecture01.deck.json` equals `ingest_slides()` on the PPTX; ad-hoc python-pptx cases pass; python-pptx is a runtime dep |
+| [P2-02](completed/P2-02-pdf-layout-and-reading-order.md) | PDF layout: columns in reading order, title, boilerplate; `parse_pdf` | P2-01 | PDF titles + blocks equal the PPTX deck's; slide 2 reads left column then right; footer gone; layout property tests pass |
+| [P2-03](completed/P2-03-slide-images-and-assets.md) | Slide images and assets: PDF images, size filter, recurring-image rule, groups | P2-02 | Both formats yield one 240×150 `image/png` on slide 3; logo-on-every-slide and tiny-image ad-hoc cases pass; PDF full-deck test passes |
+| [P2-04](completed/P2-04-slides-command-and-done-gate.md) | `lecturenotes slides FILE` inspection command + Phase 2 done-gate | P2-03 | `slides <pdf>` prints 3 slides; done-gate ticked; tickets moved to `completed/`; `CLAUDE.md` invariants added |
 
 **Suggested order:** strictly P2-01 → P2-02 → P2-03 → P2-04; the PDF ticket compares
 against the PPTX ticket's fixture, the image ticket needs both parsers, and the command
@@ -112,12 +112,13 @@ prints the finished `Deck`.
 
 ### Phase 2 done-gate
 
-- [ ] The plan §6 done-criterion is a passing test: `tests/ingest/test_ingest_slides.py`
+- [x] The plan §6 done-criterion is a passing test: `tests/ingest/test_ingest_slides.py`
       compares `ingest_slides()` on **both** `lecture01.pptx` and `lecture01.pdf` against the
-      hand-written `tests/fixtures/decks/lecture01.deck.json`.
-- [ ] Every row of the decks table in `tests/fixtures/README.md` has a test named after it
-      under `tests/ingest/`.
-- [ ] From a clean checkout:
+      hand-written `tests/fixtures/decks/lecture01.deck.json` (PPTX half P2-01, PDF half P2-03).
+- [x] Every row of the decks table in `tests/fixtures/README.md` has a test named after it
+      under `tests/ingest/` (`test_slide_1_…`, `test_slide_2_…`, `test_slide_3_…` in
+      `test_pptx.py` and `test_pdf.py`; `test_footer_is_dropped_as_boilerplate` in `test_pdf.py`).
+- [x] From a clean checkout (P2-04 closed Phase 2 on 2026-09-01):
 
 ```
 uv sync --all-groups
@@ -126,6 +127,9 @@ uv run pytest && uv run ruff check . && uv run mypy && uv run lint-imports
 
 passes, and `uv run lecturenotes slides tests/fixtures/decks/lecture01.pdf` prints
 3 slides.
+
+**Phase 2 is done.** Phase 3 (markdown renderer + filesystem emitter) can start; its
+tickets will be added to this index in a later session.
 
 ## Ticket format
 

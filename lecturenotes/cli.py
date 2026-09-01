@@ -1,8 +1,10 @@
 """Command-line entrypoint for lecturenotes.
 
-One subcommand so far, ``captions`` (P1-04): print the segments one caption file
-ingests to, so a bad transcript can be inspected in seconds (plan §8). It prints
-segments only — pairing, chunking and generation belong to ``build`` (Phase 5).
+Two inspection subcommands so far: ``captions`` (P1-04) prints the segments one
+caption file ingests to, ``slides`` (P2-04) prints the deck one slide file ingests to,
+so a bad transcript or a deck whose columns interleaved can be inspected in seconds
+(plan §8). They print one file's stage output only — pairing, chunking, alignment and
+generation belong to ``build`` (Phase 5).
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ from pathlib import Path
 
 from lecturenotes import __version__
 from lecturenotes.ingest.captions import ingest_captions
+from lecturenotes.ingest.slides import Deck, ingest_slides
 
 
 def format_clock(seconds: float) -> str:
@@ -57,6 +60,23 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="flush an unfinished sentence before it spans more than N seconds (default 60)",
     )
+
+    slides = commands.add_parser(
+        "slides",
+        help="print the deck one slide file ingests to (a debugging aid)",
+        description="Parse one .pptx/.pdf file and print each slide's title, text blocks "
+        "in reading order and images, then any image set aside as recurring (a logo).",
+    )
+    slides.add_argument("file", type=Path, help="a .pptx or .pdf slide deck")
+    slides.add_argument("--json", action="store_true", help="print the whole Deck as JSON")
+    slides.add_argument("--notes", action="store_true", help="also print speaker notes")
+    slides.add_argument(
+        "--min-px",
+        type=int,
+        default=32,
+        metavar="N",
+        help="drop images narrower or shorter than N pixels as decoration (default 32)",
+    )
     return parser
 
 
@@ -83,6 +103,46 @@ def cmd_captions(args: argparse.Namespace) -> int:
     return 0
 
 
+def _print_deck(deck: Deck, *, notes: bool) -> None:
+    assets = {asset.id: asset for asset in deck.assets}
+    for slide in deck.slides:
+        if slide.number > 1:
+            print()
+        header = f"--- slide {slide.number}"
+        if slide.title is not None:
+            header += f": {slide.title}"
+        if slide.hidden:
+            header += " [hidden]"
+        print(header)
+        for i, block in enumerate(slide.blocks):
+            if i:
+                print()
+            for line in block.lines:
+                print(line)
+        for image_id in slide.image_ids:
+            a = assets[image_id]
+            print(f"[image {a.id} {a.width}x{a.height} {a.media_type}]")
+        if notes and slide.notes is not None:
+            print(f"[notes] {slide.notes}")
+    for image_id in deck.recurring_image_ids:
+        a = assets[image_id]
+        print(f"[recurring] {a.id} {a.width}x{a.height} {a.media_type}")
+
+
+def cmd_slides(args: argparse.Namespace) -> int:
+    try:
+        deck = ingest_slides(args.file, min_px=args.min_px)
+    except (OSError, ValueError) as exc:  # missing file, bad suffix, DeckParseError
+        print(f"lecturenotes slides: {exc}", file=sys.stderr)
+        return 2
+    _utf8_stdout()
+    if args.json:
+        print(deck.model_dump_json(indent=2))
+    else:
+        _print_deck(deck, notes=args.notes)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
@@ -96,6 +156,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "captions":
         return cmd_captions(args)
+    if args.command == "slides":
+        return cmd_slides(args)
     parser.print_help()
     return 0
 

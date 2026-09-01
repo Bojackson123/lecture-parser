@@ -367,7 +367,10 @@ def test_slides_json_equals_the_hand_written_fixture(
     main(["slides", "--json", pptx_path])
     printed = Deck.model_validate_json(capsys.readouterr().out)
     expected_raw = (fixtures_dir / "decks" / "lecture01.deck.json").read_text("utf-8")
-    assert printed == Deck.model_validate_json(expected_raw)
+    expected = Deck.model_validate_json(expected_raw)
+    # source is the path as given (absolute here, repo-relative in the fixture).
+    assert printed.source.endswith(expected.source)
+    assert printed.model_copy(update={"source": expected.source}) == expected
 
 
 # --- ad-hoc decks: [hidden], untitled, --min-px, [recurring] ----------------------------

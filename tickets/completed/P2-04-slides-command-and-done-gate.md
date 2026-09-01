@@ -94,3 +94,11 @@ Phase 2 invariants later phases must respect in `CLAUDE.md`.
   intended for segments.
 - **Image bytes are printed only in `--json`** (as base64); the line format shows id, size
   and type, which is what a human needs to recognise a logo.
+- **`[recurring]` lines show `id WxH type`, not `(on N slides)`** (2026-09-01): the
+  recurring rule leaves every `image_ids` (P2-03), so the finished `Deck` no longer
+  knows how many slides carried the logo, and recovering the count would mean
+  re-composing parse → size filter inside the command — exactly what the "only
+  entrypoint" invariant recorded in `CLAUDE.md` forbids. Size and type are what a human
+  needs to recognise a logo; the count is not worth an IR field.
+- **Slides are separated by one blank line** in the plain output (none before the first),
+  blocks within a slide by one blank line, so a two-column slide reads as two paragraphs.

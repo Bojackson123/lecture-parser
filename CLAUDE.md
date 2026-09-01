@@ -72,6 +72,31 @@ Two invariants later phases depend on (P1-03/P1-04 decisions):
 `lecturenotes captions FILE [--json]` prints the segments for one file — a debugging
 aid for bad chunks, not the product. It must not grow pairing or chunking logic.
 
+## Slide ingest (Phase 2)
+
+Invariants later phases depend on (P2-01..P2-04 decisions):
+
+- **`ingest_slides(path)` is the only entrypoint.** `parse_pdf`, `parse_pptx`,
+  `layout_page` and `clean_line` are exported for debugging and tests, not for
+  re-composition elsewhere; the image rules (`min_px`, recurring) are applied inside
+  `ingest_slides`, so anything that needs a `Deck` calls it.
+- **`Slide.number` is the 1-based position in the file, hidden slides included**, so a
+  `SlideRange` matches what a reader counts when they open the deck. Skip `hidden`
+  slides if you must, never renumber.
+- **Image ids are content hashes** of the extracted bytes (`img-` + 16 hex of sha256),
+  and ingest never writes files: bytes stay in `SlideImage.data`. Phase 5 mints
+  `MediaAsset` from `SlideImage` and owns where the bytes go. The same figure via PDF and
+  PPTX has **different ids** (pypdf re-encodes the image stream) — never join decks on
+  image id across formats.
+- **`recurring_image_ids` are set aside on purpose** (a logo on more than half of ≥ 3
+  slides): they stay in `assets` but leave every `image_ids`. Do not turn them into
+  figures.
+
+`lecturenotes slides FILE [--json] [--notes] [--min-px N]` prints one deck — titles,
+blocks in reading order, images, recurring images — a debugging aid for interleaved
+columns and logos-as-figures, not the product. It must not grow pairing or alignment
+logic.
+
 ## Boundary rules
 
 - `model/` imports nothing else in the package.
@@ -90,6 +115,7 @@ uv run ruff check .
 uv run mypy
 uv run lint-imports
 uv run lecturenotes captions tests/fixtures/captions/lecture01.vtt   # smoke: 22 lines
+uv run lecturenotes slides tests/fixtures/decks/lecture01.pdf         # smoke: 3 slides
 ```
 
 ## Working conventions
