@@ -23,7 +23,7 @@ import math
 import re
 import zipfile
 from collections import Counter
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from pathlib import Path
 
 from pptx import Presentation
@@ -31,8 +31,8 @@ from pptx.enum.shapes import PP_PLACEHOLDER
 from pptx.exc import PackageNotFoundError
 from pptx.shapes.base import BaseShape
 from pptx.shapes.graphfrm import GraphicFrame
+from pptx.shapes.group import GroupShape
 from pptx.shapes.picture import Picture
-from pptx.shapes.shapetree import SlideShapes
 from pptx.slide import Slide as PptxSlide
 from pptx.util import Emu, Length
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -48,11 +48,13 @@ __all__ = [
     "Span",
     "TextBlock",
     "clean_line",
+    "drop_small_images",
     "image_id",
     "ingest_slides",
     "layout_page",
     "parse_pdf",
     "parse_pptx",
+    "set_aside_recurring_images",
 ]
 
 
@@ -201,6 +203,39 @@ def _clean_or_none(text: str | None) -> str | None:
     return cleaned or None
 
 
+# --- images: the shared allow-list ---------------------------------------------------
+#
+# Raster formats every downstream target can inline. Vector images (EMF/WMF/SVG) are
+# skipped, not converted: rasterising needs a system renderer, nothing downstream can
+# inline them, and they are almost always decorations (P2-03 decision; a deck that keeps
+# its figures as EMF is a Phase 9 concern - render the slide).
+
+_MEDIA_TYPES = frozenset(
+    {"image/png", "image/jpeg", "image/gif", "image/bmp", "image/tiff", "image/webp"}
+)
+_MIME_BY_EXT = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".bmp": "image/bmp",
+    ".tif": "image/tiff",
+    ".tiff": "image/tiff",
+    ".webp": "image/webp",
+}
+
+
+def _media_type_ok(media_type: str) -> bool:
+    return media_type in _MEDIA_TYPES
+
+
+def _slide_image(data: bytes, media_type: str, size: tuple[int, int]) -> SlideImage:
+    width, height = size
+    return SlideImage(
+        id=image_id(data), media_type=media_type, width=width, height=height, data=data
+    )
+
+
 # --- PPTX -----------------------------------------------------------------------------
 
 _TITLE_TYPES = frozenset({PP_PLACEHOLDER.TITLE, PP_PLACEHOLDER.CENTER_TITLE})
@@ -212,8 +247,8 @@ def _is_title(shape: BaseShape) -> bool:
     return shape.is_placeholder and shape.placeholder_format.type in _TITLE_TYPES
 
 
-def _reading_order(shapes: SlideShapes, slide_height: Length) -> list[BaseShape]:
-    """Top-level shapes sorted by (row band, left) — position, not z-order.
+def _reading_order(shapes: Iterable[BaseShape], slide_height: Length) -> list[BaseShape]:
+    """Sibling shapes sorted by (row band, left) — position, not z-order.
 
     spTree order is authoring order, so a text box added last but placed at the top
     must still come first. Bands of ¹⁄₂₀ slide height keep two side-by-side
@@ -225,6 +260,38 @@ def _reading_order(shapes: SlideShapes, slide_height: Length) -> list[BaseShape]
         return (int(shape.top or 0) // band, int(shape.left or 0))
 
     return sorted(shapes, key=key)
+
+
+def _walk(shapes: Iterable[BaseShape], slide_height: Length) -> Iterator[BaseShape]:
+    """Leaf shapes in reading order, groups flattened in place.
+
+    A ``GroupShape`` takes the positional slot of its own ``top``/``left``; its children
+    follow there, in their own reading order (child coordinates share one space, so
+    the same key sorts them). Groups nest, so this recurses.
+    """
+    for shape in _reading_order(shapes, slide_height):
+        if isinstance(shape, GroupShape):
+            yield from _walk(shape.shapes, slide_height)
+        else:
+            yield shape
+
+
+def _picture(shape: Picture) -> SlideImage | None:
+    """The picture's ``SlideImage``; ``None`` when it is skipped.
+
+    Skipped: a media type outside the allow-list (python-pptx reports EMF/WMF as
+    ``image/x-wmf``), and any picture whose bytes Pillow cannot identify or whose part
+    is missing — python-pptx raises from ``.image`` in those cases, and a broken picture
+    must never lose a slide's text.
+    """
+    try:
+        image = shape.image
+        media_type = image.content_type
+        if not _media_type_ok(media_type):
+            return None
+        return _slide_image(image.blob, media_type, image.size)
+    except (OSError, ValueError, KeyError):  # UnidentifiedImageError is an OSError
+        return None
 
 
 def _shape_lines(shape: BaseShape) -> list[str]:
@@ -247,14 +314,17 @@ def _notes(slide: PptxSlide) -> str | None:
 
 
 def parse_pptx(path: Path) -> Deck:
-    """Read a ``.pptx`` into a ``Deck``: titles, body blocks, notes, top-level pictures.
+    """Read a ``.pptx`` into a ``Deck``: titles, body blocks, notes, pictures.
 
     Per slide, ``title`` is the ``TITLE``/``CENTER_TITLE`` placeholder; every other
-    top-level shape with a text frame or a table becomes one ``TextBlock`` (a line per
-    paragraph, or per table row with cells joined by ``" | "``), in reading order; each
-    top-level picture becomes a ``SlideImage`` listed once per slide and once in
-    ``assets``. Group shapes are P2-03. Raises ``DeckParseError`` for a file that is
-    not a presentation; lets ``FileNotFoundError`` through.
+    shape with a text frame or a table becomes one ``TextBlock`` (a line per paragraph,
+    or per table row with cells joined by ``" | "``), in reading order; each picture
+    (a picture dropped into a placeholder included) becomes a ``SlideImage`` listed once
+    per slide and once in ``assets``. Group shapes are flattened in place (``_walk``).
+    Every raster picture is reported: the size and recurring rules are
+    ``ingest_slides``'s, so the parser stays a faithful extractor. Raises
+    ``DeckParseError`` for a file that is not a presentation; lets
+    ``FileNotFoundError`` through.
     """
     if not path.is_file():
         raise FileNotFoundError(path)
@@ -270,24 +340,17 @@ def parse_pptx(path: Path) -> Deck:
         title: str | None = None
         blocks: list[TextBlock] = []
         image_ids: list[str] = []
-        for shape in _reading_order(pptx_slide.shapes, slide_height):
+        for shape in _walk(pptx_slide.shapes, slide_height):
             if _is_title(shape):
                 if title is None:
                     title = _clean_or_none(shape.text_frame.text)  # type: ignore[attr-defined]
                 continue
             if isinstance(shape, Picture):
-                image = shape.image
-                width, height = image.size
-                asset = SlideImage(
-                    id=image_id(image.blob),
-                    media_type=image.content_type,
-                    width=width,
-                    height=height,
-                    data=image.blob,
-                )
-                assets.setdefault(asset.id, asset)
-                if asset.id not in image_ids:
-                    image_ids.append(asset.id)
+                asset = _picture(shape)
+                if asset is not None:
+                    assets.setdefault(asset.id, asset)
+                    if asset.id not in image_ids:
+                        image_ids.append(asset.id)
                 continue
             lines = _shape_lines(shape)
             if lines:
@@ -469,6 +532,30 @@ def _page_spans(page: PageObject) -> list[Span]:
     return spans
 
 
+def _page_images(page: PageObject) -> list[SlideImage]:
+    """The page's raster images as pypdf yields them, unknown and broken ones skipped.
+
+    ``page.images[i]`` decodes lazily and raises on some filters (pypdf) and some
+    streams (Pillow), so images are fetched one at a time and a failure skips **that
+    image** with no error: losing one picture is recoverable, raising would lose the
+    slide's text and, with ``ingest_slides`` as the only entrypoint, the whole deck.
+    Nothing is logged - the package has no logging yet; P2-04's command shows what was
+    found.
+    """
+    images = page.images
+    found: list[SlideImage] = []
+    for i in range(len(images)):
+        try:
+            img = images[i]
+            media_type = _MIME_BY_EXT.get(Path(img.name).suffix.lower())
+            if media_type is None or not _media_type_ok(media_type) or img.image is None:
+                continue
+            found.append(_slide_image(img.data, media_type, img.image.size))
+        except Exception:  # any decode failure, deliberately broad; see the docstring
+            continue
+    return found
+
+
 def _boilerplate(pages: Sequence[Sequence[Span]]) -> set[str]:
     """Digit-normalised span texts on more than half the pages of a deck of >= 2."""
     if len(pages) < 2:
@@ -487,9 +574,11 @@ def parse_pdf(path: Path) -> Deck:
     Running headers and footers - any span whose digit-normalised text recurs on more
     than half the pages (``Lecture 1 - slide 3 / 12`` and ``... 4 / 12`` are the same
     line) - are dropped before layout; the rule needs at least two pages. PDFs carry
-    no speaker notes (``notes`` is ``None``); images are P2-03. Raises
-    ``DeckParseError`` for a file pypdf cannot read or decrypt with the empty
-    password; lets ``FileNotFoundError`` through.
+    no speaker notes (``notes`` is ``None``). Each raster image on a page becomes a
+    ``SlideImage`` (``_page_images``), listed once per slide and once in ``assets``;
+    like ``parse_pptx`` this reports every image and leaves the size and recurring
+    rules to ``ingest_slides``. Raises ``DeckParseError`` for a file pypdf cannot
+    read or decrypt with the empty password; lets ``FileNotFoundError`` through.
     """
     if not path.is_file():
         raise FileNotFoundError(path)
@@ -498,30 +587,100 @@ def parse_pdf(path: Path) -> Deck:
         if reader.is_encrypted and reader.decrypt("") == PasswordType.NOT_DECRYPTED:
             raise DeckParseError(path, ValueError("password-protected PDF"))
         pages = [
-            (_page_spans(page), float(page.mediabox.width), float(page.mediabox.height))
+            (
+                _page_spans(page),
+                _page_images(page),
+                float(page.mediabox.width),
+                float(page.mediabox.height),
+            )
             for page in reader.pages
         ]
     except (PyPdfError, DependencyError) as exc:
         raise DeckParseError(path, exc) from exc
 
-    recurring = _boilerplate([spans for spans, _, _ in pages])
+    recurring = _boilerplate([spans for spans, _, _, _ in pages])
     slides: list[Slide] = []
-    for number, (spans, width, height) in enumerate(pages, start=1):
+    assets: dict[str, SlideImage] = {}
+    for number, (spans, images, width, height) in enumerate(pages, start=1):
         layout = layout_page(
             (span for span in spans if _normalised(span) not in recurring),
             page_width=width,
             page_height=height,
         )
+        image_ids: list[str] = []
+        for asset in images:
+            assets.setdefault(asset.id, asset)
+            if asset.id not in image_ids:
+                image_ids.append(asset.id)
         slides.append(
             Slide(
                 number=number,
                 title=layout.title,
                 blocks=layout.blocks,
                 notes=None,
-                image_ids=(),
+                image_ids=tuple(image_ids),
             )
         )
-    return Deck(source=path.as_posix(), slides=tuple(slides), assets=())
+    return Deck(source=path.as_posix(), slides=tuple(slides), assets=tuple(assets.values()))
+
+
+# --- image rules (pure, format-agnostic) ---------------------------------------------
+#
+# Both live here rather than in the parsers so they are written and tested once and
+# behave identically for both formats - the same structure as ``merge_sentences``
+# sitting behind ``ingest_captions``. They take and return ``Deck`` values (the models
+# are frozen) so P2-04's command and Phase 4 tests can call them on hand-built decks.
+
+_RECURRING_MIN_SLIDES = 3
+
+
+def _with_image_ids(deck: Deck, keep: Callable[[str], bool]) -> tuple[Slide, ...]:
+    return tuple(
+        slide.model_copy(update={"image_ids": tuple(i for i in slide.image_ids if keep(i))})
+        for slide in deck.slides
+    )
+
+
+def drop_small_images(deck: Deck, *, min_px: int) -> Deck:
+    """Remove every asset narrower or shorter than ``min_px`` from ``assets`` and from
+    every slide's ``image_ids``.
+
+    Bullet glyphs and rules are 8–20 px; real figures are hundreds. Either dimension
+    counts, so a 200 × 8 rule is a decoration too.
+    """
+    small = {a.id for a in deck.assets if a.width < min_px or a.height < min_px}
+    if not small:
+        return deck
+    return deck.model_copy(
+        update={
+            "assets": tuple(a for a in deck.assets if a.id not in small),
+            "slides": _with_image_ids(deck, lambda i: i not in small),
+            "recurring_image_ids": tuple(i for i in deck.recurring_image_ids if i not in small),
+        }
+    )
+
+
+def set_aside_recurring_images(deck: Deck) -> Deck:
+    """Move the logo out of the way: an id on more than half of the slides of a deck
+    with at least three leaves every ``image_ids``, stays in ``assets``, and is appended
+    to ``recurring_image_ids`` in first-seen order.
+
+    Phase 5 iterates ``image_ids`` and never sees it; a debugger (P2-04's ``slides``
+    command) can still see what was set aside. "More than half of ≥ 3" because a
+    two-slide deck cannot tell a logo from a figure shown twice. Idempotent.
+    """
+    if len(deck.slides) < _RECURRING_MIN_SLIDES:
+        return deck
+    counts = Counter(i for slide in deck.slides for i in slide.image_ids)
+    recurring = [i for i, n in counts.items() if n > len(deck.slides) / 2]  # first-seen order
+    if not recurring:
+        return deck
+    return deck.model_copy(
+        update={
+            "slides": _with_image_ids(deck, lambda i: i not in recurring),
+            "recurring_image_ids": deck.recurring_image_ids + tuple(recurring),
+        }
+    )
 
 
 # --- the composed stage ------------------------------------------------------------
@@ -529,15 +688,17 @@ def parse_pdf(path: Path) -> Deck:
 _PARSERS: dict[str, Callable[[Path], Deck]] = {".pptx": parse_pptx, ".pdf": parse_pdf}
 
 
-def ingest_slides(path: Path) -> Deck:
-    """Plan §3 stage 2 end to end: read ``path`` and parse by suffix.
+def ingest_slides(path: Path, *, min_px: int = 32) -> Deck:
+    """Plan §3 stage 2 end to end: parse ``path`` by suffix, then apply the image rules.
 
-    ``.pptx`` and ``.pdf``; P2-03 adds keyword-only image knobs.
-    Raises ``ValueError`` for any other suffix, ``FileNotFoundError`` for a missing
-    file, ``DeckParseError`` for a file that is not a deck.
+    ``.pptx`` and ``.pdf``. After parsing, ``drop_small_images(min_px)`` then
+    ``set_aside_recurring_images`` (a tiny logo on every slide is simply dropped).
+    ``min_px`` is a knob because a course whose decks use tiny icons meaningfully can
+    lower it. Raises ``ValueError`` for any other suffix, ``FileNotFoundError`` for a
+    missing file, ``DeckParseError`` for a file that is not a deck.
     """
     suffix = path.suffix.lower()
     parser = _PARSERS.get(suffix)
     if parser is None:
         raise ValueError(f"unsupported deck format: {suffix!r} (expected .pptx or .pdf)")
-    return parser(path)
+    return set_aside_recurring_images(drop_small_images(parser(path), min_px=min_px))

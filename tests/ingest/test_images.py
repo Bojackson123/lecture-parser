@@ -334,5 +334,6 @@ def test_broken_pdf_image_is_skipped_and_the_slide_text_kept(
     """Losing one picture is recoverable; raising would lose the whole deck."""
     (only,) = parse_pdf(_page_3_with_broken_image(decks_dir, tmp_path, corrupt)).slides
     assert only.title == "Value Iteration"
-    assert len(only.blocks) == 1
+    steps = only.blocks[0].lines  # a one-page deck also keeps its footer block (P2-02)
+    assert len(steps) == 5 and steps[0].startswith("1.")
     assert only.image_ids == ()
