@@ -1,12 +1,15 @@
-"""P1-04 ``lecturenotes captions FILE`` and P2-04 ``lecturenotes slides FILE``.
+"""P1-04 ``lecturenotes captions FILE``, P2-04 ``lecturenotes slides FILE`` and
+P3-04 ``lecturenotes render FILE [-o DIR]``.
 
 Debugging commands, not the product (plan §8: "bad notes are almost always bad
 chunks"): ``captions`` prints one line per segment, ``[m:ss–m:ss] text``, or the
 segments as JSON that ``Segment.model_validate`` accepts back; ``slides`` prints one
 deck - titles, blocks in reading order, images found, notes on request - or the
-``Deck`` as JSON that ``Deck.model_validate_json`` accepts back. Everything goes
-through ``main([...])`` and ``capsys`` so the tests exercise exactly what the console
-script runs.
+``Deck`` as JSON that ``Deck.model_validate_json`` accepts back; ``render`` prints the
+markdown one ``NoteWeek`` JSON renders to (or emits it to a directory with ``-o``), or
+the ``RenderResult`` as JSON that ``RenderResult.model_validate_json`` accepts back.
+Everything goes through ``main([...])`` and ``capsys`` so the tests exercise exactly
+what the console script runs.
 """
 
 from __future__ import annotations
@@ -23,6 +26,7 @@ from pptx.util import Inches
 import lecturenotes
 from lecturenotes.cli import format_clock, main
 from lecturenotes.ingest.slides import Deck, image_id
+from lecturenotes.render.base import RenderResult
 
 SEGMENT_COUNT = 22
 SLIDE_COUNT = 3
@@ -55,6 +59,7 @@ def test_no_arguments_prints_help_and_returns_0(capsys: pytest.CaptureFixture[st
     assert out.startswith("usage: lecturenotes")
     assert "captions" in out
     assert "slides" in out
+    assert "render" in out
 
 
 # --- plain lines ------------------------------------------------------------------
@@ -482,4 +487,115 @@ def test_slides_garbage_deck_returns_2_naming_the_file(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "bad.pdf" in captured.err
+    assert "Traceback" not in captured.err
+
+
+# =====================================================================================
+# P3-04: ``lecturenotes render FILE [-o DIR]``
+# =====================================================================================
+
+
+@pytest.fixture(scope="module")
+def week_json_path(fixtures_dir: Path) -> str:
+    return str(fixtures_dir / "notes" / "week01.json")
+
+
+@pytest.fixture(scope="module")
+def expected_markdown(fixtures_dir: Path) -> str:
+    """Hand-written (P3-02) — bytes, not read_text, so newline handling can't lie."""
+    return (fixtures_dir / "notes" / "week01.md").read_bytes().decode("utf-8")
+
+
+# --- stdout mode ------------------------------------------------------------------
+
+
+def test_render_prints_one_document_under_its_name(
+    week_json_path: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["render", week_json_path]) == 0
+    captured = capsys.readouterr()
+    headers = [line for line in captured.out.splitlines() if line.startswith("--- ")]
+    assert headers == ["--- cs-rl-101-w01.md"]
+    assert "$$" in captured.out
+    assert "> **EXAM**" in captured.out
+    assert "[2:31–4:28]" in captured.out  # the slide-less anchor
+    assert captured.err == ""
+
+
+def test_render_text_after_the_header_equals_the_expected_markdown(
+    week_json_path: str, expected_markdown: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    main(["render", week_json_path])
+    header, _, body = capsys.readouterr().out.partition("\n")
+    assert header == "--- cs-rl-101-w01.md"
+    assert body == expected_markdown
+
+
+# --- -o DIR -----------------------------------------------------------------------
+
+
+def test_render_out_writes_page_and_asset_and_prints_nothing(
+    week_json_path: str,
+    expected_markdown: str,
+    fixtures_dir: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert main(["render", week_json_path, "-o", str(tmp_path)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+    page = tmp_path / "cs-rl-101-w01.md"
+    assert page.read_bytes().decode("utf-8") == expected_markdown
+    copied = tmp_path / "assets" / "fig-value-iteration-convergence.png"
+    original = fixtures_dir / "decks" / "value_iteration.png"
+    assert copied.read_bytes() == original.read_bytes()
+
+
+# --- --json -----------------------------------------------------------------------
+
+
+def test_render_json_revalidates_to_one_document_and_one_asset(
+    week_json_path: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["render", "--json", week_json_path]) == 0
+    result = RenderResult.model_validate_json(capsys.readouterr().out)
+    assert [d.name for d in result.documents] == ["cs-rl-101-w01.md"]
+    assert [a.id for a in result.assets] == ["fig-value-iteration-convergence"]
+
+
+# --- errors -----------------------------------------------------------------------
+
+
+def test_render_non_json_file_returns_2_with_stderr_only(
+    vtt_path: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["render", vtt_path]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.startswith("lecturenotes render: ")
+    assert "Traceback" not in captured.err
+
+
+def test_render_wrong_shape_json_returns_2_with_stderr_only(
+    fixtures_dir: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Valid JSON that is a ``Deck``, not a ``NoteWeek`` — pydantic's ValidationError
+    is a ValueError, so it gets the uniform error line, not a traceback."""
+    deck_json = str(fixtures_dir / "decks" / "lecture01.deck.json")
+    assert main(["render", deck_json]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.startswith("lecturenotes render: ")
+    assert "Traceback" not in captured.err
+
+
+def test_render_missing_file_returns_2_with_stderr_only(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    missing = str(tmp_path / "nope.json")
+    assert main(["render", missing]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "nope.json" in captured.err
     assert "Traceback" not in captured.err
