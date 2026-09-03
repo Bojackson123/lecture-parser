@@ -59,7 +59,32 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "render never imports ingest"
+name = "render never imports the left half"
 type = "forbidden"
 source_modules = ["lecturenotes.render"]
-forbidden_modules = ["lecturenotes.ingest"]
+forbidden_modules = [
+    "lecturenotes.ingest",
+    "lecturenotes.align",
+    "lecturenotes.generate",
+]
+
+[[tool.importlinter.contracts]]
+name = "emit never imports the left half"
+type = "forbidden"
+source_modules = ["lecturenotes.emit"]
+forbidden_modules = [
+    "lecturenotes.ingest",
+    "lecturenotes.align",
+    "lecturenotes.generate",
+]
+
+# Plan §2: "Neither half imports the other" — the mirror of the two contracts above.
+[[tool.importlinter.contracts]]
+name = "the left half never imports render or emit"
+type = "forbidden"
+source_modules = [
+    "lecturenotes.ingest",
+    "lecturenotes.align",
+    "lecturenotes.generate",
+]
+forbidden_modules = ["lecturenotes.render", "lecturenotes.emit"]

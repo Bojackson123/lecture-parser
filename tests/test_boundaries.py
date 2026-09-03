@@ -4,6 +4,7 @@ Runs import-linter against the contracts in ``pyproject.toml`` so a boundary vio
 fails the one command every session runs, not only the separate ``uv run lint-imports``.
 """
 
+import os
 import shutil
 import subprocess
 import sys
@@ -19,11 +20,15 @@ def _lint_imports_executable() -> str:
 
 
 def test_import_linter_contracts_hold(repo_root: Path) -> None:
+    # UTF-8 on both ends: lint-imports draws a non-ASCII banner, and on Windows a pipe
+    # otherwise defaults to the ANSI codepage, which cannot decode it.
     result = subprocess.run(
         [_lint_imports_executable()],
         cwd=repo_root,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "PYTHONUTF8": "1"},
         check=False,
     )
     assert result.returncode == 0, (
