@@ -128,8 +128,55 @@ uv run pytest && uv run ruff check . && uv run mypy && uv run lint-imports
 passes, and `uv run lecturenotes slides tests/fixtures/decks/lecture01.pdf` prints
 3 slides.
 
-**Phase 2 is done.** Phase 3 (markdown renderer + filesystem emitter) can start; its
-tickets will be added to this index in a later session.
+**Phase 2 is done.** Phase 3 tickets are below.
+
+## Phase 3 — Markdown renderer + filesystem emitter
+
+Plan §6: *done when the hand-written `NoteWeek` fixture renders to a readable file.*
+Plan §2.3: renderers declare capabilities; a shared `degrade()` rewrites the IR against
+them before rendering; delivery is a separate emitter so rendering is testable with no
+network. Plan §8: contract tests parametrised over every renderer; snapshot tests on
+the markdown renderer.
+
+Phase 3 fills `render/base.py`, `render/markdown.py` and `emit/filesystem.py`, plus the
+`degrade()` slot reserved in `model/capabilities.py`; the contract-test stub in
+`tests/contract/test_renderers.py` is retyped and its four properties go live:
+
+```
+Renderer / RenderOptions / RenderResult, asset_target, format_clock   P3-01
+degrade(week, caps) / constructs_used(week)   (model/)                P3-01
+MarkdownRenderer → one week page                                      P3-02
+emit_filesystem(result, out_dir)  + emit boundary contracts           P3-03
+lecturenotes render FILE [-o DIR]                                     P3-04
+```
+
+| ID | Title | Depends on | Done when |
+|---|---|---|---|
+| [P3-01](P3-01-render-contract-and-degrade.md) | `render/base.py` contract types, `degrade()`, contract tests retyped | P2-04 | `degrade(week01, ALL - {X})` removes each construct `X` for all 64 capability subsets and the result validates; contract file typed `list[Renderer]` with the four properties implemented (still skipping); `format_clock` moved with CLI output unchanged |
+| [P3-02](P3-02-markdown-renderer.md) | Markdown renderer + hand-written expected markdown | P3-01 | Rendering `week01` yields one `cs-rl-101-w01.md` equal to the hand-written `week01.md` byte-for-byte; all four contract properties pass un-skipped for `MarkdownRenderer` |
+| [P3-03](P3-03-filesystem-emitter.md) | `emit/filesystem.py` + emit boundary contract | P3-01 | A hand-built `RenderResult` lands as UTF-8/LF files under `tmp_path` with the PNG copied byte-for-byte to `assets/`; re-emit overwrites in place; `lint-imports` reports 4 contracts, 0 broken |
+| [P3-04](P3-04-render-command-and-done-gate.md) | `lecturenotes render FILE [-o DIR]` + Phase 3 done-gate | P3-02, P3-03 | `render week01.json` prints 1 document matching the expected markdown; `-o` writes the page + 1 asset; done-gate ticked; tickets moved; `CLAUDE.md` invariants added |
+
+**Suggested order:** P3-01 first; P3-02 and P3-03 are independent of each other and can
+go in either order (both need only P3-01's types — the emitter's tests hand-build
+`RenderResult` values and never import a renderer); P3-04 last.
+
+### Phase 3 done-gate
+
+- [ ] The plan §6 done-criterion is a passing test: `tests/render/test_markdown.py`
+      compares the rendered `week01` fixture byte-for-byte against the hand-written
+      `tests/fixtures/notes/week01.md`.
+- [ ] The four renderer contract properties (plan §8) run un-skipped against
+      `MarkdownRenderer` in `tests/contract/test_renderers.py`.
+- [ ] From a clean checkout:
+
+```
+uv sync --all-groups
+uv run pytest && uv run ruff check . && uv run mypy && uv run lint-imports
+```
+
+passes, and `uv run lecturenotes render tests/fixtures/notes/week01.json` prints
+1 document.
 
 ## Ticket format
 
