@@ -3,7 +3,7 @@
 Boundary rule: this package imports nothing else in ``lecturenotes``.
 """
 
-from lecturenotes.model.capabilities import Capability
+from lecturenotes.model.capabilities import Capability, constructs_used, degrade
 from lecturenotes.model.ids import topic_id
 from lecturenotes.model.nodes import (
     BulletItem,
@@ -44,5 +44,7 @@ __all__ = [
     "SourceRef",
     "Table",
     "Topic",
+    "constructs_used",
+    "degrade",
     "topic_id",
 ]

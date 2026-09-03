@@ -18,16 +18,7 @@ from pathlib import Path
 from lecturenotes import __version__
 from lecturenotes.ingest.captions import ingest_captions
 from lecturenotes.ingest.slides import Deck, ingest_slides
-
-
-def format_clock(seconds: float) -> str:
-    """``m:ss``, or ``h:mm:ss`` once past an hour; whole seconds, floored."""
-    total = int(seconds)
-    hours, rest = divmod(total, 3600)
-    minutes, secs = divmod(rest, 60)
-    if hours:
-        return f"{hours}:{minutes:02d}:{secs:02d}"
-    return f"{minutes}:{secs:02d}"
+from lecturenotes.render.base import format_clock
 
 
 def build_parser() -> argparse.ArgumentParser:
