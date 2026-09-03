@@ -178,8 +178,59 @@ uv run pytest && uv run ruff check . && uv run mypy && uv run lint-imports
 passes, and `uv run lecturenotes render tests/fixtures/notes/week01.json` prints
 1 document.
 
-**Phase 3 is done.** Phase 4 (alignment) can start; its tickets will be added to this
-index in a later session.
+**Phase 3 is done.** Phase 4 tickets are below.
+
+## Phase 4 — Alignment
+
+Plan §6: *done when the fixture deck maps to correct spans in order; gaps flagged.*
+Plan §3 stage 4: `Deck` + `[Segment]` → `[Chunk]`, a pure function, monotonic. Plan
+§4.1: score slide vocabulary against transcript segments weighting rare terms, solve
+for *monotonic* boundaries rather than matching slides independently, and surface the
+**gap signal** (minutes of speech with no matching slide content — board work). Plan
+§10: property tests — alignment output must be monotonic and must partition the
+segments, for any input.
+
+Phase 4 fills `lecturenotes/align/` with two modules — pure scoring, then the solve —
+plus the entrypoint; each ticket consumes the previous ticket's output, and the
+expected chunks are pinned by the slide → time map in `tests/fixtures/README.md`
+(whose spans are, by design, the `week01` notes fixture's topic anchors):
+
+```
+tokenize / term_weights / slide_terms / score      align/scoring.py     P4-01
+span_units, solve_windows (monotonic DP)           align/boundaries.py  P4-02
+gap carving, Chunk, align_lecture(deck, segments)  align/boundaries.py  P4-03
+lecturenotes align DECK CAPTIONS                   cli.py               P4-04
+```
+
+| ID | Title | Depends on | Done when |
+|---|---|---|---|
+| [P4-01](P4-01-tokens-and-rare-term-scoring.md) | Tokens, rare-term weights, slide↔segment scoring | P3-04 | `w("bellman") > w("equation")` on the fixture; every board-work segment shares < 2 scoring terms with every slide; speaker notes never score |
+| [P4-02](P4-02-monotonic-window-dp.md) | Span units and the monotonic window DP | P4-01 | Fixture yields 16 units and windows opening at segments 1/13/19; DP equals brute force (optimum *and* tie-break) under hypothesis; the generic "equation" does not advance segment 4 |
+| [P4-03](P4-03-gap-carving-and-align-lecture.md) | Gap carving, `Chunk`, `align_lecture()`, expected-chunks fixture | P4-02 | Hand-written `lecture01.chunks.json` equals `align_lecture()` on PPTX+VTT **and** PDF+SRT; the dice detour is a `slides=None` gap chunk spanning 151–268; partition + monotonicity property tests pass |
+| [P4-04](P4-04-align-command-and-done-gate.md) | `lecturenotes align DECK CAPTIONS` inspection command + Phase 4 done-gate | P4-03 | `align <pdf> <vtt>` prints 4 chunks with one `(no slide)` header; done-gate ticked; tickets moved to `completed/`; `CLAUDE.md` invariants added |
+
+**Suggested order:** strictly P4-01 → P4-02 → P4-03 → P4-04; the DP consumes the
+scores, the entrypoint composes both, and the command prints the finished chunks — no
+parallelism here.
+
+### Phase 4 done-gate
+
+- [ ] The plan §6 done-criterion is a passing test: `tests/align/test_align_lecture.py`
+      compares `align_lecture()` on **both** deck formats and **both** caption formats
+      against the hand-written `tests/fixtures/align/lecture01.chunks.json`, with the
+      board-work gap flagged as a `slides=None` chunk.
+- [ ] Every row of the slide → time map in `tests/fixtures/README.md` has a test named
+      after it under `tests/align/`, and the plan §10 properties (monotonic; partitions
+      the segments, for any input) run under hypothesis.
+- [ ] From a clean checkout:
+
+```
+uv sync --all-groups
+uv run pytest && uv run ruff check . && uv run mypy && uv run lint-imports
+```
+
+passes, and `uv run lecturenotes align tests/fixtures/decks/lecture01.pdf
+tests/fixtures/captions/lecture01.vtt` prints 4 chunks.
 
 ## Ticket format
 
