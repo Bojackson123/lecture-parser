@@ -14,7 +14,8 @@ Every renderer registered in ``RENDERERS`` must satisfy four properties against 
    ``format_clock`` lives in ``render/base.py``: every renderer must surface anchors
    through it.
 
-P3-02 and later phases register renderers here; the properties then run against each.
+Later phases append their renderers to ``RENDERERS``; the properties then run against
+each.
 """
 
 from __future__ import annotations
@@ -23,10 +24,11 @@ import pytest
 
 from lecturenotes.model import NoteWeek, constructs_used, degrade
 from lecturenotes.render.base import Renderer, RenderOptions, format_clock
+from lecturenotes.render.markdown import MarkdownRenderer
 
-RENDERERS: list[Renderer] = []  # P3-02 registers MarkdownRenderer here.
+RENDERERS: list[Renderer] = [MarkdownRenderer()]
 
-_PARAMS = RENDERERS or [pytest.param(None, marks=pytest.mark.skip(reason="no renderers yet"))]
+_PARAMS = [pytest.param(renderer, id=renderer.name) for renderer in RENDERERS]
 
 
 @pytest.mark.parametrize("renderer", _PARAMS)

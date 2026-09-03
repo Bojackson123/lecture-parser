@@ -19,6 +19,9 @@ decks/value_iteration.png   the figure embedded in both decks (1.4 KB; PPTX embe
                             the PDF re-encodes it)
 notes/week01.py             hand-written NoteWeek builder covering the whole IR (P0-04)
 notes/week01.json           its committed snapshot; regenerate with `--write`, never by hand
+notes/week01.md             the week rendered as one markdown page, hand-written (P3-02);
+                            transcribed from week01.py and never regenerated from the code
+                            under test — if the format changes on purpose, edit it deliberately
 test_fixtures_sanity.py     line counts, third-party readers, size caps
 ```
 
