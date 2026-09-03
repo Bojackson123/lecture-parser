@@ -1,10 +1,11 @@
 """Command-line entrypoint for lecturenotes.
 
-Two inspection subcommands so far: ``captions`` (P1-04) prints the segments one
+Three inspection subcommands so far: ``captions`` (P1-04) prints the segments one
 caption file ingests to, ``slides`` (P2-04) prints the deck one slide file ingests to,
-so a bad transcript or a deck whose columns interleaved can be inspected in seconds
-(plan §8). They print one file's stage output only — pairing, chunking, alignment and
-generation belong to ``build`` (Phase 5).
+``render`` (P3-04) prints the markdown one ``NoteWeek`` JSON renders to (or emits it
+with ``-o``), so a bad transcript, a deck whose columns interleaved, or a renderer
+tweak can be inspected in seconds (plan §8, §7.1). They run one stage on one file only
+— pairing, chunking, alignment and generation belong to ``build`` (Phase 5).
 """
 
 from __future__ import annotations
@@ -16,9 +17,12 @@ import sys
 from pathlib import Path
 
 from lecturenotes import __version__
+from lecturenotes.emit.filesystem import emit_filesystem
 from lecturenotes.ingest.captions import ingest_captions
 from lecturenotes.ingest.slides import Deck, ingest_slides
-from lecturenotes.render.base import format_clock
+from lecturenotes.model import NoteWeek
+from lecturenotes.render.base import RenderOptions, format_clock
+from lecturenotes.render.markdown import MarkdownRenderer
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -68,13 +72,35 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="drop images narrower or shorter than N pixels as decoration (default 32)",
     )
+
+    render = commands.add_parser(
+        "render",
+        help="render a NoteWeek JSON to markdown (a debugging aid)",
+        description="Load one NoteWeek JSON and render it with the markdown renderer: "
+        "print each document after a '--- name' line, or emit the documents and their "
+        "assets under a directory with -o.",
+    )
+    render.add_argument(
+        "file", type=Path, help="a NoteWeek JSON such as tests/fixtures/notes/week01.json"
+    )
+    render.add_argument(
+        "-o",
+        "--out",
+        type=Path,
+        default=None,
+        metavar="DIR",
+        help="emit the documents and assets under DIR instead of printing",
+    )
+    render.add_argument("--json", action="store_true", help="print the RenderResult as JSON")
     return parser
 
 
 def _utf8_stdout() -> None:
-    """Windows consoles default to a code page that mangles the en-dash in ``[0:01–0:26]``."""
+    """Windows consoles default to a code page that mangles the en-dash in ``[0:01–0:26]``,
+    and Windows pipes translate ``\\n`` to ``\\r\\n``, which would break ``render``'s
+    byte-for-byte diff against the expected markdown. UTF-8 and LF, everywhere."""
     if isinstance(sys.stdout, io.TextIOWrapper):
-        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stdout.reconfigure(encoding="utf-8", newline="\n")
 
 
 def cmd_captions(args: argparse.Namespace) -> int:
@@ -134,6 +160,32 @@ def cmd_slides(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_render(args: argparse.Namespace) -> int:
+    try:
+        week = NoteWeek.model_validate_json(args.file.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:  # missing file, bad JSON, ValidationError
+        print(f"lecturenotes render: {exc}", file=sys.stderr)
+        return 2
+    result = MarkdownRenderer().render(week, RenderOptions())
+    if args.out is not None:
+        try:
+            # asset_root stays at its cwd default: the fixture's sources are
+            # repo-root-relative (P3-04 decision).
+            emit_filesystem(result, args.out)
+        except (OSError, ValueError) as exc:  # unwritable target, missing asset source
+            print(f"lecturenotes render: {exc}", file=sys.stderr)
+            return 2
+        return 0  # quiet on success: the output paths are deterministic
+    _utf8_stdout()
+    if args.json:
+        print(result.model_dump_json(indent=2))
+    else:
+        for document in result.documents:
+            print(f"--- {document.name}")
+            print(document.text, end="")  # already newline-terminated
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
@@ -149,6 +201,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_captions(args)
     if args.command == "slides":
         return cmd_slides(args)
+    if args.command == "render":
+        return cmd_render(args)
     parser.print_help()
     return 0
 

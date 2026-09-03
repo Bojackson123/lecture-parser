@@ -97,6 +97,29 @@ blocks in reading order, images, recurring images — a debugging aid for interl
 columns and logos-as-figures, not the product. It must not grow pairing or alignment
 logic.
 
+## Rendering (Phase 3)
+
+Invariants later phases depend on (P3-01..P3-04 decisions):
+
+- **`degrade(week, capabilities)` lives in `model/`** and takes a `set[Capability]`,
+  never a renderer; renderers declare `capabilities` and never improvise degradation —
+  the capability↔construct map is defined once, in `constructs_used`.
+- **Every renderer surfaces anchors via `format_clock`** (from `render/base.py`) — the
+  contract test greps every renderer's output for it, so timestamps built any other
+  way fail the suite.
+- **Renderers are pure** (`NoteWeek` in, `RenderResult` out, no IO); **emitters own IO
+  and never read the IR.** Asset files are id-keyed via the shared `asset_target`, so
+  links and paths cannot drift and re-emits update in place.
+- **`tests/fixtures/notes/week01.md` is hand-written** and never regenerated from the
+  code under test — it is the markdown format spec, not a snapshot.
+- **`render/` and `emit/` never import `ingest/`, `align/` or `generate/`**
+  (import-linter, 4 contracts).
+
+`lecturenotes render FILE [-o DIR] [--json]` renders one existing `NoteWeek` JSON with
+the markdown renderer — a debugging aid, and the §7.1 tuning loop once Phase 5 caches
+generated weeks. It must not grow pairing, generation, or a format flag before Phase 6
+(which adds the flag when Anki gives it a second value).
+
 ## Boundary rules
 
 - `model/` imports nothing else in the package.
@@ -116,6 +139,7 @@ uv run mypy
 uv run lint-imports
 uv run lecturenotes captions tests/fixtures/captions/lecture01.vtt   # smoke: 22 lines
 uv run lecturenotes slides tests/fixtures/decks/lecture01.pdf         # smoke: 3 slides
+uv run lecturenotes render tests/fixtures/notes/week01.json           # smoke: 1 document
 ```
 
 ## Working conventions
