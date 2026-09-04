@@ -18,8 +18,12 @@ decks/lecture01.deck.json   the PPTX deck as `Deck` JSON, hand-written (P2-01); 
 decks/value_iteration.png   the figure embedded in both decks (1.4 KB; PPTX embeds it verbatim,
                             the PDF re-encodes it)
 align/lecture01.chunks.json the four chunks alignment must produce, hand-written (P4-03)
-generate/lecture01.responses.json  recorded LLM responses, one per chunk request key,
-                            hand-transcribed from notes/week01.py (P5-02)
+generate/lecture01.responses.json  recorded LLM responses, one per chunk request key
+                            plus the synthesis key, hand-transcribed from notes/week01.py
+                            (P5-02, synthesis entry P5-03)
+generate/lecture01.notes.json  the NoteLecture the fake pipeline must produce,
+                            hand-written (P5-03): week01 lec01 with three deliberate
+                            differences (source paths, figure asset id, minted asset)
 notes/week01.py             hand-written NoteWeek builder covering the whole IR (P0-04)
 notes/week01.json           its committed snapshot; regenerate with `--write`, never by hand
 notes/week01.md             the week rendered as one markdown page, hand-written (P3-02);
@@ -83,6 +87,26 @@ P5-03 mints the asset), and `image_alts` maps that id to week01's `MediaAsset.al
 text. The fixture is therefore **PPTX-bound**: the PDF deck's re-encoded figure has a
 different id by design (P2-03), so the fake pipeline runs on PPTX+VTT and
 cross-format behaviour is pinned in the `chunk_prompt` tests instead.
+
+P5-03 adds the `synthesis:lec01` entry: the JSON text of a `LectureSynthesis` carrying
+week01 lec01's `title`, `overview`, `objectives`, `glossary` and `open_questions`
+verbatim, so the lecture-level pass reproduces the same front matter the chunk
+responses reproduce topic by topic.
+
+`generate/lecture01.notes.json` is the *expected output* of Phase 5's entrypoint: the
+`NoteLecture` that `generate_lecture()` on PPTX+VTT with the recorded fake must equal,
+in exactly 5 requests (4 chunks + 1 synthesis). It is `notes/week01.py`'s lec01 with
+exactly three deliberate differences, each forced by generation-truth, and is never
+regenerated from the code under test:
+
+1. `source` is `deck_path: tests/fixtures/decks/lecture01.pptx`,
+   `caption_path: tests/fixtures/captions/lecture01.vtt` — the files the fake pipeline
+   actually consumes; no video URL.
+2. the value-iteration topic's `Figure.asset_id` is `img-a63ae9b7dc5e9397` (the
+   PPTX image id the responses fixture cites, not week01's semantic id).
+3. `assets` is the one minted `MediaAsset`: id `img-a63ae9b7dc5e9397`, `image/png`,
+   `source: media/img-a63ae9b7dc5e9397.png` (POSIX, relative to the week document's
+   directory), with week01's alt text.
 
 ## Captions
 

@@ -1,16 +1,24 @@
-"""P5-02 prompt tests: request keys, prompt contents, and the pinned instructions.
+"""P5-02/P5-03 prompt tests: request keys, prompt contents, and the pinned
+instructions.
 
 The exact-substring pins are the arbiter for prompt regressions (the ticket's rule:
-this file pins what the prompt *contains*, not how well it works). The prompt embeds
-``ChunkNotes.model_json_schema()``, so a schema edit that silently drops the embedding
-fails here.
+this file pins what the prompt *contains*, not how well it works). The prompts embed
+``ChunkNotes.model_json_schema()`` / ``LectureSynthesis.model_json_schema()``, so a
+schema edit that silently drops the embedding fails here.
 """
 
 from __future__ import annotations
 
 from lecturenotes.align import Chunk
-from lecturenotes.generate.prompts import PROMPT_VERSION, ChunkNotes, chunk_prompt
+from lecturenotes.generate.prompts import (
+    PROMPT_VERSION,
+    ChunkNotes,
+    LectureSynthesis,
+    chunk_prompt,
+    synthesis_prompt,
+)
 from lecturenotes.ingest.slides import Deck
+from lecturenotes.model import NoteWeek
 
 PPTX_IMAGE_ID = "img-a63ae9b7dc5e9397"
 
@@ -125,3 +133,43 @@ def test_prompt_embeds_the_chunk_notes_schema(chunks: list[Chunk], deck: Deck) -
 def test_chunk_notes_schema_declares_image_alts() -> None:
     schema = ChunkNotes.model_json_schema()
     assert "image_alts" in schema["properties"]
+
+
+# --- the synthesis prompt (P5-03) ---------------------------------------------------
+
+
+def test_synthesis_key_is_synthesis_plus_lecture_id(week01: NoteWeek) -> None:
+    assert synthesis_prompt(week01.lectures[0].topics, "lec01").key == "synthesis:lec01"
+
+
+def test_synthesis_prompt_contains_every_topic_heading(week01: NoteWeek) -> None:
+    topics = week01.lectures[0].topics
+    prompt = synthesis_prompt(topics, "lec01").prompt
+    for topic in topics:
+        assert topic.heading in prompt
+
+
+def test_synthesis_prompt_contains_the_topic_bodies(week01: NoteWeek) -> None:
+    """The model reads the IR it just wrote: bodies ride along as compact JSON."""
+    prompt = synthesis_prompt(week01.lectures[0].topics, "lec01").prompt
+    assert "Sequential decision making starts with a Markov decision process." in prompt
+    assert "solve the last decision first" in prompt
+
+
+def test_synthesis_instruction_pins(week01: NoteWeek) -> None:
+    prompt = synthesis_prompt(week01.lectures[0].topics, "lec01").prompt
+    assert "overview of a few sentences" in prompt
+    assert "2-4 objectives" in prompt
+    assert "only for terms the topics actually define or use" in prompt
+    # The §4.2 anti-hallucination stance at lecture level (exact substring).
+    assert "Add nothing the topics do not support" in prompt
+
+
+def test_synthesis_prompt_embeds_the_lecture_synthesis_schema(week01: NoteWeek) -> None:
+    prompt = synthesis_prompt(week01.lectures[0].topics, "lec01").prompt
+    assert '"open_questions"' in prompt  # a distinctive LectureSynthesis schema fragment
+
+
+def test_lecture_synthesis_schema_declares_open_questions() -> None:
+    schema = LectureSynthesis.model_json_schema()
+    assert "open_questions" in schema["properties"]
