@@ -1,10 +1,22 @@
-"""The chunk prompt (plan §4.2, per-chunk pass): ``PROMPT_VERSION``, ``ChunkNotes``,
-``chunk_prompt``.
+"""The generation prompts (plan §4.2): the per-chunk pass and the lecture-level
+synthesis pass.
 
     PROMPT_VERSION                 the §7.1 cache-invalidation knob — bump deliberately
     ChunkNotes                     what the model must return: heading, body, cards,
                                    alt text per referenced image id
     chunk_prompt(chunk, deck, id)  one ``Chunk`` → one ``GenRequest``
+    LectureSynthesis               the lecture-level return: title, overview,
+                                   objectives, glossary, open questions
+    synthesis_prompt(topics, id)   all of a lecture's topics → one ``GenRequest``
+
+Decisions (P5-03):
+
+- **Synthesis reads the generated topics, not the transcript.** Its job is coherence
+  over what the notes *say*; the transcript was already distilled chunk by chunk where
+  the model had room for detail (§4.2). Topic bodies ride along as compact JSON — the
+  model reads the IR it just wrote.
+- **The synthesis must add nothing the topics don't support** — the §4.2
+  anti-hallucination stance at lecture level, pinned by exact substring in the tests.
 
 Decisions (P5-02):
 
@@ -27,15 +39,22 @@ Decisions (P5-02):
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 
 from pydantic import BaseModel, ConfigDict
 
 from lecturenotes.align import Chunk
 from lecturenotes.generate.client import GenRequest
 from lecturenotes.ingest.slides import Deck, Slide
-from lecturenotes.model import CardSeed, Node, SlideRange, topic_id
+from lecturenotes.model import CardSeed, Definition, Node, SlideRange, Topic, topic_id
 
-__all__ = ["PROMPT_VERSION", "ChunkNotes", "chunk_prompt"]
+__all__ = [
+    "PROMPT_VERSION",
+    "ChunkNotes",
+    "LectureSynthesis",
+    "chunk_prompt",
+    "synthesis_prompt",
+]
 
 PROMPT_VERSION: str = "1"
 
@@ -137,3 +156,53 @@ def chunk_prompt(chunk: Chunk, deck: Deck, lecture_id: str) -> GenRequest:
         key="chunk:" + topic_id(lecture_id, chunk.slides, chunk.start_s),
         prompt="\n".join(lines) + "\n",
     )
+
+
+_SYNTHESIS_INSTRUCTIONS = """\
+## Instructions
+- Write the lecture-level front matter for the study notes above.
+- Give a title, an overview of a few sentences, and 2-4 objectives.
+- Include glossary definitions only for terms the topics actually define or use.
+- List open questions a student should follow up on.
+- Add nothing the topics do not support: every claim in the overview, objectives, \
+glossary and open questions must come from the topics above."""
+
+
+class LectureSynthesis(BaseModel):
+    """What the model returns for the lecture-level pass: front matter over the topics.
+
+    Reuses the IR's ``Definition`` for the glossary, the same way ``ChunkNotes``
+    reuses ``Node``/``CardSeed``: the model writes IR, not a parallel dialect.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    title: str
+    overview: str
+    objectives: list[str]
+    glossary: list[Definition] = []
+    open_questions: list[str] = []
+
+
+def synthesis_prompt(topics: Sequence[Topic], lecture_id: str) -> GenRequest:
+    """All of a lecture's topics → one ``GenRequest`` (the synthesis half of §4.2)."""
+    lines = [
+        "You are writing the front matter for one lecture's structured study notes.",
+        "The topics below are the finished notes; read them as given.",
+        "",
+    ]
+    for topic in topics:
+        body = json.dumps(
+            [node.model_dump(mode="json") for node in topic.body], separators=(",", ":")
+        )
+        lines.extend([f"## {topic.heading}", body, ""])
+    lines.extend(
+        [
+            _SYNTHESIS_INSTRUCTIONS,
+            "",
+            "## Response schema",
+            "Respond with a single JSON object matching this schema, and nothing else:",
+            json.dumps(LectureSynthesis.model_json_schema(), indent=2),
+        ]
+    )
+    return GenRequest(key=f"synthesis:{lecture_id}", prompt="\n".join(lines) + "\n")
