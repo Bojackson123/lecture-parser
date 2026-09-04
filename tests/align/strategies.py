@@ -1,4 +1,4 @@
-"""Hypothesis strategies for the P4-02 boundary tests.
+"""Hypothesis strategies for the P4-02/P4-03 alignment tests.
 
 ``ordered_segments`` builds transcript-shaped input for ``span_units``: segments in
 non-decreasing ``start_s`` order whose neighbours strictly overlap, touch exactly, or
@@ -9,6 +9,11 @@ so "touching" is exact, and the text is word salad because these tests never rea
 0-6 units, a 5-term alphabet and **integer** weights, so the brute-force optimum is
 cheap and ties are real — the tie-break is part of the spec and must actually be
 exercised (P4-02 decision).
+
+``small_decks`` builds 1-3 visible slides with a few word lines for the
+``align_lecture`` properties (P4-03). Against ``ordered_segments``'s word salad most
+units come out off-slide, which is the point: the carving paths (runs, silence splits,
+the two gates) get hammered, while on-slide behaviour is pinned by the fixture tests.
 """
 
 from __future__ import annotations
@@ -16,6 +21,7 @@ from __future__ import annotations
 from hypothesis import strategies as st
 
 from lecturenotes.ingest.captions import Segment
+from lecturenotes.ingest.slides import Deck, Slide, TextBlock
 
 TERMS = ("alpha", "bravo", "carol", "delta", "echo")
 
@@ -58,3 +64,28 @@ def windows_instances(draw: st.DrawFn) -> WindowsInstance:
     units = draw(st.lists(_TERM_SET, min_size=0, max_size=6))
     weights = {term: float(draw(st.integers(min_value=1, max_value=4))) for term in TERMS}
     return slides, units, weights
+
+
+@st.composite
+def small_decks(draw: st.DrawFn) -> Deck:
+    """A deck of 1-3 visible slides, each a single block of a few word lines."""
+    count = draw(st.integers(min_value=1, max_value=3))
+    slides = []
+    for number in range(1, count + 1):
+        lines = draw(
+            st.lists(
+                st.lists(st.sampled_from(TERMS), min_size=1, max_size=3).map(" ".join),
+                min_size=1,
+                max_size=3,
+            )
+        )
+        slides.append(
+            Slide(
+                number=number,
+                title=None,
+                blocks=(TextBlock(lines=tuple(lines)),),
+                notes=None,
+                image_ids=(),
+            )
+        )
+    return Deck(source="adhoc.pptx", slides=tuple(slides), assets=())

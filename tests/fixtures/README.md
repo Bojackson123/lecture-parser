@@ -17,6 +17,7 @@ decks/lecture01.deck.json   the PPTX deck as `Deck` JSON, hand-written (P2-01); 
                             figure re-encoded, so with a different id (P2-03)
 decks/value_iteration.png   the figure embedded in both decks (1.4 KB; PPTX embeds it verbatim,
                             the PDF re-encodes it)
+align/lecture01.chunks.json the four chunks alignment must produce, hand-written (P4-03)
 notes/week01.py             hand-written NoteWeek builder covering the whole IR (P0-04)
 notes/week01.json           its committed snapshot; regenerate with `--write`, never by hand
 notes/week01.md             the week rendered as one markdown page, hand-written (P3-02);
@@ -49,6 +50,14 @@ The transcript was written to this schedule. Phase 4 alignment tests assert agai
 Rare-term weighting (Phase 4): **"bellman"** appears in cues 11, 13, 15 only (all inside
 4:30–7:00). The generic **"equation"** appears in all three slide segments (cues 5–6, 11,
 13, 15, 16) and so must not, on its own, pull a segment towards slide 2.
+
+`align/lecture01.chunks.json` is this map transcribed as the *expected output* of Phase
+4: four chunks (slide 1, a `slides: null` gap, slide 2, slide 3) whose segment objects
+are copied verbatim from `captions/lecture01.segments.json`. `align_lecture()` must
+equal it exactly on both deck formats and both caption formats; it is never regenerated
+from the code under test — if an alignment rule changes on purpose, edit the table,
+then the JSON. The gap's silence brackets are the 2 s at 149→151 and the 3 s at
+268→271 — the only ≥ 1 s gaps between consecutive cues.
 
 ## Captions
 
