@@ -18,6 +18,8 @@ decks/lecture01.deck.json   the PPTX deck as `Deck` JSON, hand-written (P2-01); 
 decks/value_iteration.png   the figure embedded in both decks (1.4 KB; PPTX embeds it verbatim,
                             the PDF re-encodes it)
 align/lecture01.chunks.json the four chunks alignment must produce, hand-written (P4-03)
+generate/lecture01.responses.json  recorded LLM responses, one per chunk request key,
+                            hand-transcribed from notes/week01.py (P5-02)
 notes/week01.py             hand-written NoteWeek builder covering the whole IR (P0-04)
 notes/week01.json           its committed snapshot; regenerate with `--write`, never by hand
 notes/week01.md             the week rendered as one markdown page, hand-written (P3-02);
@@ -58,6 +60,29 @@ equal it exactly on both deck formats and both caption formats; it is never rege
 from the code under test — if an alignment rule changes on purpose, edit the table,
 then the JSON. The gap's silence brackets are the 2 s at 149→151 and the 3 s at
 268→271 — the only ≥ 1 s gaps between consecutive cues.
+
+The four chunks weigh **81 / 120 / 103 / 103 words** (whitespace-split over their
+segment texts). Phase 5's density merge (`merge_chunks`, default floor 100 words)
+returns them unchanged: chunks 2–4 clear the floor and the 81-word chunk 1 is fenced
+by the gap, so the chunk ↔ `week01` lec01 topic correspondence above survives the
+merge. This is why the P5-02 floor is 100 and not §9.1's suggested ~120 — at 120,
+slides 2 and 3 would merge into one topic.
+
+## Generate
+
+`generate/lecture01.responses.json` is the recorded-response fixture for the Phase 5
+fake (`RecordedClient`): a JSON object keyed by request key (`chunk:` + topic id —
+`chunk:lec01:s1-1`, `chunk:lec01:t151`, `chunk:lec01:s2-2`, `chunk:lec01:s3-3`), each
+value the JSON text of a `ChunkNotes`. It was hand-transcribed from
+`notes/week01.py`'s lec01 topics so that the fake pipeline — `ingest → align →
+generate(RecordedClient)` — reproduces the week01 lec01 topics that Phase 3 renders;
+it is never regenerated from the code under test. Two deliberate differences on
+`chunk:lec01:s3-3`: its `Figure.asset_id` is the PPTX deck's slide-3 image id
+`img-a63ae9b7dc5e9397` (not week01's semantic `fig-value-iteration-convergence` —
+P5-03 mints the asset), and `image_alts` maps that id to week01's `MediaAsset.alt`
+text. The fixture is therefore **PPTX-bound**: the PDF deck's re-encoded figure has a
+different id by design (P2-03), so the fake pipeline runs on PPTX+VTT and
+cross-format behaviour is pinned in the `chunk_prompt` tests instead.
 
 ## Captions
 

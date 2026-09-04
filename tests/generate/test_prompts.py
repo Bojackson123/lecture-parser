@@ -1,0 +1,125 @@
+"""P5-02 prompt tests: request keys, prompt contents, and the pinned instructions.
+
+The exact-substring pins are the arbiter for prompt regressions (the ticket's rule:
+this file pins what the prompt *contains*, not how well it works). The prompt embeds
+``ChunkNotes.model_json_schema()``, so a schema edit that silently drops the embedding
+fails here.
+"""
+
+from __future__ import annotations
+
+from lecturenotes.align import Chunk
+from lecturenotes.generate.prompts import PROMPT_VERSION, ChunkNotes, chunk_prompt
+from lecturenotes.ingest.slides import Deck
+
+PPTX_IMAGE_ID = "img-a63ae9b7dc5e9397"
+
+# --- request keys -------------------------------------------------------------------
+
+
+def test_prompt_version_is_pinned() -> None:
+    assert PROMPT_VERSION == "1"
+
+
+def test_slide_chunk_key_is_chunk_plus_topic_id(chunks: list[Chunk], deck: Deck) -> None:
+    assert chunk_prompt(chunks[2], deck, "lec01").key == "chunk:lec01:s2-2"
+
+
+def test_gap_chunk_key_uses_the_start_time(chunks: list[Chunk], deck: Deck) -> None:
+    assert chunk_prompt(chunks[1], deck, "lec01").key == "chunk:lec01:t151"
+
+
+# --- the slide-2 prompt: transcript, slide context, speaker notes -------------------
+
+
+def test_prompt_contains_every_segment_with_its_span(chunks: list[Chunk], deck: Deck) -> None:
+    prompt = chunk_prompt(chunks[2], deck, "lec01").prompt
+    for segment in chunks[2].segments:
+        assert f"[{segment.start_s}-{segment.end_s}] {segment.text}" in prompt
+
+
+def test_prompt_contains_the_slide_title_and_block_lines(chunks: list[Chunk], deck: Deck) -> None:
+    prompt = chunk_prompt(chunks[2], deck, "lec01").prompt
+    slide = deck.slides[1]
+    assert slide.title is not None and slide.title in prompt
+    for block in slide.blocks:
+        for line in block.lines:
+            assert line in prompt
+
+
+def test_prompt_contains_the_speaker_notes(chunks: list[Chunk], deck: Deck) -> None:
+    """"this will be on the exam" appears twice: cue 14 and the slide-2 note."""
+    prompt = chunk_prompt(chunks[2], deck, "lec01").prompt
+    notes = deck.slides[1].notes
+    assert notes is not None and notes in prompt
+    assert prompt.count("this will be on the exam") == 2
+
+
+def test_pptx_prompt_lists_image_ids_with_pixel_sizes(chunks: list[Chunk], deck: Deck) -> None:
+    prompt = chunk_prompt(chunks[3], deck, "lec01").prompt
+    assert f"{PPTX_IMAGE_ID} (240x150)" in prompt
+
+
+# --- the same calls on the PDF deck: format differences stay inside the prompt ------
+
+
+def test_pdf_prompt_has_no_notes_section(chunks: list[Chunk], pdf_deck: Deck) -> None:
+    prompt = chunk_prompt(chunks[2], pdf_deck, "lec01").prompt
+    assert "Speaker notes" not in prompt
+    assert prompt.count("this will be on the exam") == 1  # cue 14 only
+
+
+def test_pdf_prompt_lists_the_pdf_deck_image_ids(chunks: list[Chunk], pdf_deck: Deck) -> None:
+    prompt = chunk_prompt(chunks[3], pdf_deck, "lec01").prompt
+    pdf_image_id = pdf_deck.slides[2].image_ids[0]
+    assert pdf_image_id != PPTX_IMAGE_ID  # pypdf re-encodes (P2-03)
+    assert f"{pdf_image_id} (240x150)" in prompt
+    assert PPTX_IMAGE_ID not in prompt
+
+
+# --- the gap-chunk prompt -----------------------------------------------------------
+
+
+def test_gap_prompt_has_no_slide_context(chunks: list[Chunk], deck: Deck) -> None:
+    prompt = chunk_prompt(chunks[1], deck, "lec01").prompt
+    for slide in deck.slides:
+        assert slide.title is not None and slide.title not in prompt
+        assert slide.notes is not None and slide.notes not in prompt
+        for block in slide.blocks:
+            for line in block.lines:
+                assert line not in prompt
+    assert "Speaker notes" not in prompt
+    assert "img-" not in prompt
+
+
+def test_gap_prompt_contains_the_board_work_framing(chunks: list[Chunk], deck: Deck) -> None:
+    prompt = chunk_prompt(chunks[1], deck, "lec01").prompt
+    assert "The lecturer was away from the slides" in prompt
+
+
+# --- instruction pins (exact substrings, the arbiter for prompt regressions) --------
+
+
+def test_instruction_pins(chunks: list[Chunk], deck: Deck) -> None:
+    for chunk in chunks:
+        prompt = chunk_prompt(chunk, deck, "lec01").prompt
+        assert "Start the body with a short prose summary, then a bullet list of key points" in (
+            prompt
+        )
+        assert "Write mathematics as LaTeX, only inside Equation nodes" in prompt
+        assert "Quote exam or emphasis remarks near-verbatim in a Callout of kind EXAM" in prompt
+        assert "use a Callout of kind UNCERTAIN instead of guessing" in prompt
+        assert "Reference only the listed image ids in Figure nodes" in prompt
+
+
+# --- the embedded response schema ---------------------------------------------------
+
+
+def test_prompt_embeds_the_chunk_notes_schema(chunks: list[Chunk], deck: Deck) -> None:
+    prompt = chunk_prompt(chunks[2], deck, "lec01").prompt
+    assert '"image_alts"' in prompt  # a distinctive ChunkNotes schema fragment
+
+
+def test_chunk_notes_schema_declares_image_alts() -> None:
+    schema = ChunkNotes.model_json_schema()
+    assert "image_alts" in schema["properties"]
