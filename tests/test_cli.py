@@ -1,6 +1,6 @@
 """P1-04 ``lecturenotes captions FILE``, P2-04 ``lecturenotes slides FILE``,
-P3-04 ``lecturenotes render FILE [-o DIR]`` and P4-04 ``lecturenotes align DECK
-CAPTIONS``.
+P3-04 ``lecturenotes render FILE [-o DIR]``, P4-04 ``lecturenotes align DECK
+CAPTIONS`` and P5-04 ``lecturenotes build PATHS...``.
 
 Debugging commands, not the product (plan §8: "bad notes are almost always bad
 chunks"): ``captions`` prints one line per segment, ``[m:ss–m:ss] text``, or the
@@ -10,14 +10,18 @@ deck - titles, blocks in reading order, images found, notes on request - or the
 markdown one ``NoteWeek`` JSON renders to (or emits it to a directory with ``-o``), or
 the ``RenderResult`` as JSON that ``RenderResult.model_validate_json`` accepts back;
 ``align`` prints the chunks one deck and one caption file align to, or the chunk list
-as JSON that ``Chunk.model_validate`` accepts back. Everything goes through
-``main([...])`` and ``capsys`` so the tests exercise exactly what the console script
-runs.
+as JSON that ``Chunk.model_validate`` accepts back. ``build`` is the product: pairing
+ritual (§7.4), ``--dry-run`` chunking (§8), and the fake-driven real run that writes
+the ``NoteWeek`` JSON ``render`` consumes (§7.1's tuning loop). Everything goes
+through ``main([...])`` and ``capsys`` so the tests exercise exactly what the console
+script runs; the build tests monkeypatch ``cli._make_client``, the one client seam,
+so no test touches the network (plan §8).
 """
 
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from textwrap import dedent
 
@@ -27,9 +31,12 @@ from pptx import Presentation
 from pptx.util import Inches
 
 import lecturenotes
+from lecturenotes import cli
 from lecturenotes.align.boundaries import Chunk
 from lecturenotes.cli import format_clock, main
+from lecturenotes.generate.client import GenRequest, RecordedClient
 from lecturenotes.ingest.slides import Deck, image_id
+from lecturenotes.model import NoteLecture, NoteWeek, SourceRef
 from lecturenotes.render.base import RenderResult
 
 SEGMENT_COUNT = 22
@@ -710,3 +717,280 @@ def test_align_missing_captions_returns_2_with_stderr_only(
     assert captured.out == ""
     assert "nope.vtt" in captured.err
     assert "Traceback" not in captured.err
+
+
+# =====================================================================================
+# P5-04: ``lecturenotes build PATHS... --course TEXT --week N``
+# =====================================================================================
+
+WEEK_ID = "cs-rl-101-w01"
+MEDIA_NAME = f"{PPTX_IMAGE_ID}.png"
+COURSE_ARGS = ["--course", "CS-RL-101", "--week", "1"]
+
+
+@pytest.fixture(scope="module")
+def responses_path(fixtures_dir: Path) -> Path:
+    return fixtures_dir / "generate" / "lecture01.responses.json"
+
+
+@pytest.fixture(scope="module")
+def notes_fixture_path(fixtures_dir: Path) -> Path:
+    return fixtures_dir / "generate" / "lecture01.notes.json"
+
+
+@pytest.fixture
+def no_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Any client construction is a test failure — and no key must ever be consulted."""
+
+    def boom(model: str) -> RecordedClient:
+        raise AssertionError("a client was constructed")
+
+    monkeypatch.setattr(cli, "_make_client", boom)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+
+class _CountingRecorded:
+    """The recorded fake behind a shared call counter — the CLI-level §7.1 budget."""
+
+    def __init__(self, path: Path, counter: list[int]) -> None:
+        self._inner = RecordedClient(path)
+        self.model = self._inner.model
+        self._counter = counter
+
+    def complete(self, request: GenRequest) -> str:
+        self._counter[0] += 1
+        return self._inner.complete(request)
+
+
+@pytest.fixture
+def complete_calls(
+    responses_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> list[int]:
+    """Patch the client seam with the counting recorded fake; yield the call counter."""
+    counter = [0]
+    monkeypatch.setattr(
+        cli, "_make_client", lambda model: _CountingRecorded(responses_path, counter)
+    )
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    return counter
+
+
+class _FakeTty:
+    def isatty(self) -> bool:
+        return True
+
+
+def _pairing_lines(out: str) -> list[str]:
+    return [line for line in out.splitlines() if line.lstrip().startswith("lec")]
+
+
+# --- --dry-run ---------------------------------------------------------------------
+
+
+def test_build_dry_run_prints_pairing_then_4_chunks_with_no_client(
+    pptx_path: str, vtt_path: str, no_client: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The plan §6 dry-run criterion: pairing + chunking, before any client exists."""
+    assert main(["build", pptx_path, vtt_path, *COURSE_ARGS, "--dry-run"]) == 0
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    pairing = _pairing_lines(captured.out)
+    assert len(pairing) == 1
+    assert "lec01" in pairing[0]
+    assert "lecture01.pptx" in pairing[0]
+    assert "lecture01.vtt" in pairing[0]
+    assert _chunk_headers(captured.out) == EXPECTED_CHUNK_HEADERS
+    # The pairing comes first; the chunks follow in the align command's format.
+    lines = captured.out.splitlines()
+    assert lines.index(pairing[0]) < lines.index(EXPECTED_CHUNK_HEADERS[0])
+
+
+def test_build_dry_run_forwards_min_words(
+    pptx_path: str, vtt_path: str, no_client: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """At a 200-word floor the three slide chunks merge into one; the gap fences."""
+    argv = ["build", pptx_path, vtt_path, *COURSE_ARGS, "--dry-run", "--min-words", "200"]
+    assert main(argv) == 0
+    headers = _chunk_headers(capsys.readouterr().out)
+    assert len(headers) < len(EXPECTED_CHUNK_HEADERS)
+    assert sum("(no slide)" in header for header in headers) == 1
+
+
+# --- pairing -----------------------------------------------------------------------
+
+
+def _sources_dir(tmp_path: Path, pptx_path: str, vtt_path: str, lectures: int) -> Path:
+    """A directory of ``lectureNN.pptx``/``lectureNN.vtt`` copies of the fixtures."""
+    sources = tmp_path / "sources"
+    sources.mkdir()
+    for n in range(1, lectures + 1):
+        shutil.copy(pptx_path, sources / f"lecture{n:02d}.pptx")
+        shutil.copy(vtt_path, sources / f"lecture{n:02d}.vtt")
+    return sources
+
+
+def test_build_pairs_a_directory_in_sorted_filename_order(
+    pptx_path: str,
+    vtt_path: str,
+    tmp_path: Path,
+    no_client: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    sources = _sources_dir(tmp_path, pptx_path, vtt_path, lectures=2)
+    assert main(["build", str(sources), *COURSE_ARGS, "--dry-run"]) == 0
+    pairing = _pairing_lines(capsys.readouterr().out)
+    assert len(pairing) == 2
+    assert "lec01" in pairing[0] and "lecture01.pptx" in pairing[0]
+    assert "lecture01.vtt" in pairing[0]
+    assert "lec02" in pairing[1] and "lecture02.pptx" in pairing[1]
+    assert "lecture02.vtt" in pairing[1]
+
+
+def test_build_unequal_counts_exit_2_listing_both_sides(
+    pptx_path: str,
+    vtt_path: str,
+    tmp_path: Path,
+    no_client: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    sources = _sources_dir(tmp_path, pptx_path, vtt_path, lectures=2)
+    (sources / "lecture02.vtt").unlink()
+    assert main(["build", str(sources), *COURSE_ARGS, "--dry-run"]) == 2
+    captured = capsys.readouterr()
+    assert captured.err.startswith("lecturenotes build: ")
+    assert "lecture01.pptx" in captured.err and "lecture02.pptx" in captured.err
+    assert "lecture01.vtt" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_build_unknown_suffix_exits_2(
+    vtt_path: str, tmp_path: Path, no_client: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stray = tmp_path / "syllabus.txt"
+    stray.write_text("not lecture material\n", encoding="utf-8")
+    assert main(["build", str(stray), vtt_path, *COURSE_ARGS, "--dry-run"]) == 2
+    captured = capsys.readouterr()
+    assert "syllabus.txt" in captured.err
+    assert "Traceback" not in captured.err
+
+
+# --- confirmation ------------------------------------------------------------------
+
+
+def test_build_decline_exits_1_after_printing_the_pairing(
+    pptx_path: str,
+    vtt_path: str,
+    tmp_path: Path,
+    no_client: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr("sys.stdin", _FakeTty())
+    monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+    argv = ["build", pptx_path, vtt_path, *COURSE_ARGS, "-o", str(tmp_path / "out")]
+    assert main(argv) == 1  # no_client asserts no client was ever constructed
+    out = capsys.readouterr().out
+    assert len(_pairing_lines(out)) == 1
+    assert not (tmp_path / "out").exists()
+
+
+def test_build_confirm_y_proceeds(
+    pptx_path: str,
+    vtt_path: str,
+    tmp_path: Path,
+    complete_calls: list[int],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sys.stdin", _FakeTty())
+    monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+    argv = ["build", pptx_path, vtt_path, *COURSE_ARGS, "-o", str(tmp_path / "out")]
+    assert main(argv) == 0
+    assert (tmp_path / "out" / f"{WEEK_ID}.json").exists()
+
+
+def test_build_non_tty_without_yes_exits_2_naming_the_flag(
+    pptx_path: str,
+    vtt_path: str,
+    tmp_path: Path,
+    no_client: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Scripts must never hang on a hidden prompt (pytest's stdin is not a TTY)."""
+    argv = ["build", pptx_path, vtt_path, *COURSE_ARGS, "-o", str(tmp_path / "out")]
+    assert main(argv) == 2
+    captured = capsys.readouterr()
+    assert "--yes" in captured.err
+    assert "Traceback" not in captured.err
+    assert not (tmp_path / "out").exists()
+
+
+# --- the real run (recorded fake) --------------------------------------------------
+
+
+def _build(pptx_path: str, vtt_path: str, out: Path) -> int:
+    return main(["build", pptx_path, vtt_path, *COURSE_ARGS, "--yes", "-o", str(out)])
+
+
+def test_build_real_run_writes_the_week_json_and_media(
+    pptx_path: str,
+    vtt_path: str,
+    notes_fixture_path: Path,
+    tmp_path: Path,
+    complete_calls: list[int],
+) -> None:
+    """The plan §6 criterion, fake-driven: one valid ``NoteWeek``, the fixture lecture
+    with the command's own paths as its source, and the referenced media file."""
+    assert _build(pptx_path, vtt_path, tmp_path) == 0
+    raw = (tmp_path / f"{WEEK_ID}.json").read_bytes()
+    assert b"\r" not in raw and raw.endswith(b"\n")  # UTF-8, LF, newline-terminated
+    week = NoteWeek.model_validate_json(raw.decode("utf-8"))
+    assert week.id == WEEK_ID
+    assert week.course == "CS-RL-101"
+    assert week.week_number == 1
+    expected = NoteLecture.model_validate_json(
+        notes_fixture_path.read_text(encoding="utf-8")
+    ).model_copy(
+        update={
+            "source": SourceRef(
+                deck_path=Path(pptx_path).as_posix(),
+                caption_path=Path(vtt_path).as_posix(),
+            )
+        }
+    )
+    assert week.lectures == [expected]
+    assert (tmp_path / "media" / MEDIA_NAME).exists()
+
+
+def test_build_output_renders(
+    pptx_path: str,
+    vtt_path: str,
+    tmp_path: Path,
+    complete_calls: list[int],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """§7.1's tuning loop end to end: ``build`` then ``render``, two commands."""
+    assert _build(pptx_path, vtt_path, tmp_path) == 0
+    capsys.readouterr()
+    assert main(["render", str(tmp_path / f"{WEEK_ID}.json")]) == 0
+    captured = capsys.readouterr()
+    headers = [line for line in captured.out.splitlines() if line.startswith("--- ")]
+    assert headers == [f"--- {WEEK_ID}.md"]
+    assert captured.err == ""
+
+
+def test_build_second_run_is_served_entirely_from_the_cache(
+    pptx_path: str,
+    vtt_path: str,
+    tmp_path: Path,
+    complete_calls: list[int],
+) -> None:
+    """The default ``<out>/.cache`` persisted all five responses: zero new
+    ``complete`` calls, byte-identical output files (§7.1 through the CLI)."""
+    assert _build(pptx_path, vtt_path, tmp_path) == 0
+    assert complete_calls[0] == 5
+    first_json = (tmp_path / f"{WEEK_ID}.json").read_bytes()
+    first_media = (tmp_path / "media" / MEDIA_NAME).read_bytes()
+    assert _build(pptx_path, vtt_path, tmp_path) == 0
+    assert complete_calls[0] == 5
+    assert (tmp_path / f"{WEEK_ID}.json").read_bytes() == first_json
+    assert (tmp_path / "media" / MEDIA_NAME).read_bytes() == first_media
