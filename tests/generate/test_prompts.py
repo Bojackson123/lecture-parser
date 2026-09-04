@@ -82,12 +82,14 @@ def test_pdf_prompt_lists_the_pdf_deck_image_ids(chunks: list[Chunk], pdf_deck: 
 
 def test_gap_prompt_has_no_slide_context(chunks: list[Chunk], deck: Deck) -> None:
     prompt = chunk_prompt(chunks[1], deck, "lec01").prompt
+    prompt_lines = set(prompt.splitlines())
     for slide in deck.slides:
         assert slide.title is not None and slide.title not in prompt
         assert slide.notes is not None and slide.notes not in prompt
         for block in slide.blocks:
-            for line in block.lines:
-                assert line not in prompt
+            # Whole-line membership: a one-word line like "Equation" may legitimately
+            # occur inside instruction text, but never as slide context of its own.
+            assert not set(block.lines) & prompt_lines
     assert "Speaker notes" not in prompt
     assert "img-" not in prompt
 
