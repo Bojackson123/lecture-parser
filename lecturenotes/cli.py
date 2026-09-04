@@ -1,14 +1,21 @@
 """Command-line entrypoint for lecturenotes.
 
-Four inspection subcommands so far: ``captions`` (P1-04) prints the segments one
+``build`` (P5-04) is the product: it composes ingest → align → generate for a week of
+paired deck + caption files and writes the ``NoteWeek`` JSON (plus its ``media/``)
+that ``render`` consumes — §7.1's regenerate-and-render tuning loop in two commands.
+Pairing is sorted filename order, printed and confirmed, never inferred (§7.4);
+``--dry-run`` prints the pairing and the exact chunking the real run would prompt
+over and stops before any client exists (§8).
+
+Four inspection subcommands besides it: ``captions`` (P1-04) prints the segments one
 caption file ingests to, ``slides`` (P2-04) prints the deck one slide file ingests to,
 ``render`` (P3-04) prints the markdown one ``NoteWeek`` JSON renders to (or emits it
 with ``-o``), ``align`` (P4-04) prints the chunks one deck and one caption file align
 to, so a bad transcript, a deck whose columns interleaved, a renderer tweak, or a bad
 chunk can be inspected in seconds (plan §8, §7.1). They run one stage on explicitly
-named files only — pairing and generation belong to ``build`` (Phase 5); in
-particular ``align`` takes two explicit paths and never guesses which caption file
-goes with which deck (§7.4).
+named files only — pairing and generation belong to ``build``; in particular
+``align`` takes two explicit paths and never guesses which caption file goes with
+which deck (§7.4).
 """
 
 from __future__ import annotations
@@ -16,15 +23,20 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import re
 import sys
 from pathlib import Path
 
 from lecturenotes import __version__
 from lecturenotes.align.boundaries import Chunk, align_lecture
 from lecturenotes.emit.filesystem import emit_filesystem
+from lecturenotes.generate.cache import CachedClient
+from lecturenotes.generate.client import DEFAULT_MODEL, AnthropicClient, LLMClient
+from lecturenotes.generate.lecture import generate_lecture, merge_chunks
+from lecturenotes.generate.prompts import PROMPT_VERSION
 from lecturenotes.ingest.captions import ingest_captions
 from lecturenotes.ingest.slides import Deck, ingest_slides
-from lecturenotes.model import NoteWeek
+from lecturenotes.model import NoteWeek, SourceRef
 from lecturenotes.render.base import RenderOptions, format_clock
 from lecturenotes.render.markdown import MarkdownRenderer
 
@@ -121,6 +133,62 @@ def build_parser() -> argparse.ArgumentParser:
         default=1.0,
         metavar="N",
         help="a gap must be bracketed by silences of at least N seconds (default 1)",
+    )
+
+    build = commands.add_parser(
+        "build",
+        help="build a week of study notes from paired decks and caption files",
+        description="Pair decks (.pdf/.pptx) with caption files (.vtt/.srt) by sorted "
+        "filename, print the pairing for confirmation, then ingest, align and generate "
+        "one NoteWeek JSON plus its media/ directory — the input `lecturenotes render` "
+        "consumes. --dry-run stops before generation and prints the chunking instead.",
+    )
+    build.add_argument(
+        "paths",
+        nargs="+",
+        type=Path,
+        metavar="PATH",
+        help="deck/caption files, or directories scanned (non-recursively) for them",
+    )
+    build.add_argument(
+        "--course", required=True, metavar="TEXT", help="course name, e.g. CS-RL-101"
+    )
+    build.add_argument("--week", type=int, required=True, metavar="N", help="week number")
+    build.add_argument(
+        "-o",
+        "--out",
+        type=Path,
+        default=Path("notes"),
+        metavar="DIR",
+        help="output directory for the week JSON and media/ (default: notes)",
+    )
+    build.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print the pairing and the chunking, then stop before generation",
+    )
+    build.add_argument(
+        "--yes", action="store_true", help="accept the printed pairing without prompting"
+    )
+    build.add_argument(
+        "--model",
+        default=DEFAULT_MODEL,
+        metavar="ID",
+        help=f"Anthropic model id (default: {DEFAULT_MODEL})",
+    )
+    build.add_argument(
+        "--min-words",
+        type=int,
+        default=100,
+        metavar="N",
+        help="merge slide chunks below N transcript words into a neighbour (default 100)",
+    )
+    build.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=None,
+        metavar="DIR",
+        help="response cache directory (default: <out>/.cache)",
     )
     return parser
 
@@ -256,6 +324,150 @@ def cmd_align(args: argparse.Namespace) -> int:
     return 0
 
 
+_DECK_SUFFIXES = {".pdf", ".pptx"}
+_CAPTION_SUFFIXES = {".vtt", ".srt"}
+
+
+def _make_client(model: str) -> LLMClient:
+    """The one client seam (P5-04 decision): tests monkeypatch this, and
+    ``ANTHROPIC_API_KEY`` handling stays inside ``AnthropicClient`` (consulted only on
+    the first real ``complete``, never here)."""
+    return AnthropicClient(model)
+
+
+def _collect_pairs(paths: list[Path]) -> list[tuple[str, Path, Path]]:
+    """Sorted-filename pairing (plan §7.4): ``[(lecture_id, deck, captions)]``.
+
+    Directories are scanned non-recursively for known suffixes; explicit files are
+    classified by suffix and anything else is an error. No stem matching, no duration
+    comparison, no content sniffing — §7.4 rejects inference on purpose; the caller
+    prints the result and the user confirms it.
+    """
+    decks: list[Path] = []
+    captions: list[Path] = []
+    for path in paths:
+        if path.is_dir():
+            for child in sorted(path.iterdir()):
+                if child.suffix.lower() in _DECK_SUFFIXES:
+                    decks.append(child)
+                elif child.suffix.lower() in _CAPTION_SUFFIXES:
+                    captions.append(child)
+        elif path.suffix.lower() in _DECK_SUFFIXES:
+            decks.append(path)
+        elif path.suffix.lower() in _CAPTION_SUFFIXES:
+            captions.append(path)
+        else:
+            raise ValueError(
+                f"{path}: not a deck (.pdf/.pptx), a caption file (.vtt/.srt),"
+                " or a directory"
+            )
+    decks.sort(key=lambda p: p.name)
+    captions.sort(key=lambda p: p.name)
+    if len(decks) != len(captions):
+        deck_names = ", ".join(p.name for p in decks) or "(none)"
+        caption_names = ", ".join(p.name for p in captions) or "(none)"
+        raise ValueError(
+            f"{len(decks)} deck(s) but {len(captions)} caption file(s);"
+            f" every deck needs exactly one caption file."
+            f" decks: {deck_names}. captions: {caption_names}"
+        )
+    if not decks:
+        raise ValueError("no decks or caption files found")
+    return [
+        (f"lec{n:02d}", deck, caption)
+        for n, (deck, caption) in enumerate(zip(decks, captions, strict=True), start=1)
+    ]
+
+
+def _course_slug(course: str) -> str:
+    """Course lowercased, non-alphanumeric runs collapsed to ``-`` (§7.2: the week id
+    feeds the stable topic ids, so it must be derivable and boring)."""
+    return re.sub(r"[^a-z0-9]+", "-", course.lower()).strip("-")
+
+
+def cmd_build(args: argparse.Namespace) -> int:
+    try:
+        pairs = _collect_pairs(args.paths)
+    except ValueError as exc:
+        print(f"lecturenotes build: {exc}", file=sys.stderr)
+        return 2
+    _utf8_stdout()
+    print("pairing (sorted filename order — check it, a wrong pairing looks fine):")
+    for lecture_id, deck_path, caption_path in pairs:
+        print(f"  {lecture_id}: {deck_path} + {caption_path}")
+
+    if args.dry_run:
+        # Stops before any client exists: no key consulted, nothing spent (plan §8).
+        # merge_chunks here and generate_lecture's internal merge share min_words, so
+        # this is exactly the chunking the real run prompts over.
+        for lecture_id, deck_path, caption_path in pairs:
+            try:
+                deck = ingest_slides(deck_path)
+                segments = ingest_captions(caption_path)
+            except (OSError, ValueError) as exc:
+                print(f"lecturenotes build: {exc}", file=sys.stderr)
+                return 2
+            chunks = merge_chunks(align_lecture(deck, segments), args.min_words)
+            print()
+            if len(pairs) > 1:
+                print(f"== {lecture_id}")
+            _print_chunks(chunks, deck)
+        return 0
+
+    if not args.yes:
+        if not sys.stdin.isatty():
+            print(
+                "lecturenotes build: stdin is not a terminal, so the pairing cannot be"
+                " confirmed interactively; pass --yes to accept it",
+                file=sys.stderr,
+            )
+            return 2
+        answer = input("proceed with this pairing? [y/N] ")
+        if answer.strip().lower() not in {"y", "yes"}:
+            return 1
+
+    cache_dir = args.cache_dir if args.cache_dir is not None else args.out / ".cache"
+    client = CachedClient(_make_client(args.model), cache_dir, PROMPT_VERSION)
+    lectures = []
+    try:
+        for lecture_id, deck_path, caption_path in pairs:
+            deck = ingest_slides(deck_path)
+            segments = ingest_captions(caption_path)
+            lectures.append(
+                generate_lecture(
+                    deck,
+                    align_lecture(deck, segments),
+                    lecture_id=lecture_id,
+                    source=SourceRef(
+                        deck_path=deck_path.as_posix(), caption_path=caption_path.as_posix()
+                    ),
+                    client=client,
+                    out_dir=args.out,
+                    min_words=args.min_words,
+                )
+            )
+    except (OSError, ValueError) as exc:  # bad file, bad response, hallucinated figure
+        print(f"lecturenotes build: {exc}", file=sys.stderr)
+        return 2
+    week = NoteWeek(
+        id=f"{_course_slug(args.course)}-w{args.week:02d}",
+        course=args.course,
+        week_number=args.week,
+        lectures=lectures,
+    )
+    args.out.mkdir(parents=True, exist_ok=True)
+    target = args.out / f"{week.id}.json"
+    # Bytes, not write_text: the week01.json convention is UTF-8 + LF everywhere.
+    target.write_bytes((week.model_dump_json(indent=2) + "\n").encode("utf-8"))
+    topic_count = sum(len(lecture.topics) for lecture in week.lectures)
+    asset_count = sum(len(lecture.assets) for lecture in week.lectures)
+    print(
+        f"wrote {target}: {len(week.lectures)} lecture(s),"
+        f" {topic_count} topic(s), {asset_count} asset(s)"
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
@@ -275,6 +487,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_render(args)
     if args.command == "align":
         return cmd_align(args)
+    if args.command == "build":
+        return cmd_build(args)
     parser.print_help()
     return 0
 
