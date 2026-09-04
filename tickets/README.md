@@ -298,7 +298,57 @@ passes, and `uv run lecturenotes build tests/fixtures/decks/lecture01.pptx
 tests/fixtures/captions/lecture01.vtt --course CS-RL-101 --week 1 --dry-run` prints
 1 pairing and 4 chunks.
 
-**Phase 5 is done.** Phase 6 tickets are not written yet.
+**Phase 5 is done.** Phase 6 tickets are below.
+
+## Phase 6 — Anki renderer
+
+Plan §6: *done when the same `NoteWeek` produces a deck — any IR flaw surfaces here.*
+The plan calls this "the real checkpoint": Anki is not a document — atomic cards, no
+hierarchy — so it exercises the IR in a direction no document renderer will (§2.2:
+`CardSeed` is the Anki target's input; §7.2: re-emitting must update, not duplicate;
+§8: the contract properties now face a second, structurally alien renderer). Two IR
+flaws are known going in, and P6-01 resolves both before any renderer code: two
+`week01` topics have no cards (so their anchors would vanish from a cards-only deck,
+failing contract property 4), and `CardSeed` has no stable identity (so Anki
+re-import would duplicate). The deck format is Anki's notes-in-plain-text TSV — pure
+text, so the pure-renderer contract, determinism and the hand-written byte-for-byte
+fixture doctrine all survive contact with Anki.
+
+```
+cards on every topic, prompt pin, week01.anki.txt (spec)   fixtures + generate/prompts.py   P6-01
+AnkiRenderer (guid, quoting, $…$→\(…\)), contract reg.     render/anki.py                   P6-02
+lecturenotes render FILE --format {markdown,anki}          cli.py                           P6-03
+```
+
+| ID | Title | Depends on | Done when |
+|---|---|---|---|
+| [P6-01](P6-01-card-coverage-and-expected-deck.md) | Card coverage, prompt pin, hand-written expected deck | P5-04 | Every `week01` topic has ≥ 1 card and the P5 fixtures agree; "at least one card per topic" pinned in the chunk prompt; `week01.anki.txt` committed with 6 header lines + 8 rows; `week01.md` untouched |
+| [P6-02](P6-02-anki-renderer.md) | Anki renderer | P6-01 | `AnkiRenderer` output equals `week01.anki.txt` byte-for-byte with an empty asset manifest; guid/quoting/math ad-hoc cases pass; all four contract properties pass for both renderers |
+| [P6-03](P6-03-render-format-flag-and-done-gate.md) | `render --format` flag + Phase 6 done-gate | P6-02 | `render week01.json --format anki` prints the 8-card deck and the default stays markdown; real-Anki double-import shows 8 added then 0; done-gate ticked; tickets moved; `CLAUDE.md` invariants added |
+
+**Suggested order:** strictly P6-01 → P6-02 → P6-03; the expected deck is the
+renderer's spec, and the flag needs a second renderer to select — no parallelism
+here.
+
+### Phase 6 done-gate
+
+- [ ] The plan §6 done-criterion is a passing test: `tests/render/test_anki.py`
+      compares `AnkiRenderer` on the `week01` fixture byte-for-byte against the
+      hand-written `tests/fixtures/notes/week01.anki.txt`.
+- [ ] The four renderer contract properties (plan §8) pass un-skipped for **both**
+      `markdown` and `anki` in `tests/contract/test_renderers.py`.
+- [ ] The §7.2 criterion is observed for real, once, manually: the emitted `.txt`
+      imported into a real Anki adds 8 notes; importing it again adds 0 (guids
+      update in place).
+- [ ] From a clean checkout:
+
+```
+uv sync --all-groups
+uv run pytest && uv run ruff check . && uv run mypy && uv run lint-imports
+```
+
+passes, and `uv run lecturenotes render tests/fixtures/notes/week01.json --format
+anki` prints 1 document with 8 card rows.
 
 ## Ticket format
 
