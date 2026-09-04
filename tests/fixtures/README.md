@@ -30,7 +30,8 @@ notes/week01.md             the week rendered as one markdown page, hand-written
                             transcribed from week01.py and never regenerated from the code
                             under test — if the format changes on purpose, edit it deliberately
 notes/week01.anki.txt       the week's cards as one Anki notes-in-plain-text file, hand-written
-                            (P6-01); transcribed from week01.py and never regenerated from the
+                            (P6-01); byte-equality target of tests/render/test_anki.py (P6-02);
+                            transcribed from week01.py and never regenerated from the
                             code under test — if the format changes on purpose, edit it deliberately
 test_fixtures_sanity.py     line counts, third-party readers, size caps
 ```

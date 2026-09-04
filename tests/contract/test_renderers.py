@@ -23,10 +23,11 @@ from __future__ import annotations
 import pytest
 
 from lecturenotes.model import NoteWeek, constructs_used, degrade
+from lecturenotes.render.anki import AnkiRenderer
 from lecturenotes.render.base import Renderer, RenderOptions, format_clock
 from lecturenotes.render.markdown import MarkdownRenderer
 
-RENDERERS: list[Renderer] = [MarkdownRenderer()]
+RENDERERS: list[Renderer] = [MarkdownRenderer(), AnkiRenderer()]
 
 _PARAMS = [pytest.param(renderer, id=renderer.name) for renderer in RENDERERS]
 
