@@ -39,7 +39,9 @@ def test_key_changes_with_prompt_version(pair: tuple[str, str], model: str, prom
 @given(TEXT, DISTINCT, TEXT)
 def test_key_changes_with_model(prompt_version: str, pair: tuple[str, str], prompt: str) -> None:
     first, second = pair
-    assert response_key(prompt_version, first, prompt) != response_key(prompt_version, second, prompt)
+    assert response_key(prompt_version, first, prompt) != response_key(
+        prompt_version, second, prompt
+    )
 
 
 @given(TEXT, TEXT, DISTINCT)
