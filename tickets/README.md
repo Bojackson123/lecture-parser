@@ -265,10 +265,10 @@ lecturenotes build PATHS... (pairing, --dry-run)           cli.py               
 
 | ID | Title | Depends on | Done when |
 |---|---|---|---|
-| [P5-01](P5-01-llm-client-fake-and-cache.md) | LLM client seam, recorded-response fake, response cache | P4-04 | `RecordedClient` serves by request key and misses loudly; the cache key changes iff `prompt_version`/model/prompt does; `anthropic` is a runtime dep; nothing needs an API key at import time |
-| [P5-02](P5-02-chunk-prompts-and-topic-generation.md) | Chunk pass: `merge_chunks`, chunk prompt, `generate_topic()`, responses fixture | P5-01 | The fixture chunks (81/120/103/103 words) survive the 100-word floor; the 4 generated topics reproduce `week01` lec01's (PPTX image id on the figure); EXAM-verbatim and UNCERTAIN prompt instructions pinned by tests |
-| [P5-03](P5-03-synthesis-and-generate-lecture.md) | Synthesis pass, asset minting, `generate_lecture()`, expected-notes fixture | P5-02 | `generate_lecture()` on PPTX+VTT with the fake equals the hand-written `lecture01.notes.json` in exactly 5 requests; `media/img-….png` written byte-equal to the deck asset |
-| [P5-04](P5-04-build-command-and-done-gate.md) | `lecturenotes build` (pairing, `--dry-run`, real run) + Phase 5 done-gate | P5-03 | `build <pptx> <vtt> --course CS-RL-101 --week 1 --dry-run` prints 1 pairing + 4 chunks with no API key; the fake-driven real run writes `cs-rl-101-w01.json` that `render` accepts; done-gate ticked; tickets moved to `completed/`; `CLAUDE.md` invariants added |
+| [P5-01](completed/P5-01-llm-client-fake-and-cache.md) | LLM client seam, recorded-response fake, response cache | P4-04 | `RecordedClient` serves by request key and misses loudly; the cache key changes iff `prompt_version`/model/prompt does; `anthropic` is a runtime dep; nothing needs an API key at import time |
+| [P5-02](completed/P5-02-chunk-prompts-and-topic-generation.md) | Chunk pass: `merge_chunks`, chunk prompt, `generate_topic()`, responses fixture | P5-01 | The fixture chunks (81/120/103/103 words) survive the 100-word floor; the 4 generated topics reproduce `week01` lec01's (PPTX image id on the figure); EXAM-verbatim and UNCERTAIN prompt instructions pinned by tests |
+| [P5-03](completed/P5-03-synthesis-and-generate-lecture.md) | Synthesis pass, asset minting, `generate_lecture()`, expected-notes fixture | P5-02 | `generate_lecture()` on PPTX+VTT with the fake equals the hand-written `lecture01.notes.json` in exactly 5 requests; `media/img-….png` written byte-equal to the deck asset |
+| [P5-04](completed/P5-04-build-command-and-done-gate.md) | `lecturenotes build` (pairing, `--dry-run`, real run) + Phase 5 done-gate | P5-03 | `build <pptx> <vtt> --course CS-RL-101 --week 1 --dry-run` prints 1 pairing + 4 chunks with no API key; the fake-driven real run writes `cs-rl-101-w01.json` that `render` accepts; done-gate ticked; tickets moved to `completed/`; `CLAUDE.md` invariants added |
 
 **Suggested order:** strictly P5-01 → P5-02 → P5-03 → P5-04; the prompts need the
 client seam, the entrypoint composes the chunk pass, and the command composes
@@ -276,15 +276,20 @@ everything — no parallelism here.
 
 ### Phase 5 done-gate
 
-- [ ] The plan §6 dry-run criterion is a passing test: `tests/test_cli.py` drives
+- [x] The plan §6 dry-run criterion is a passing test: `tests/test_cli.py` drives
       `build --dry-run` on the committed PPTX+VTT and gets the pairing plus the 4
-      chunks with no client constructed and no `ANTHROPIC_API_KEY` set.
+      chunks with no client constructed and no `ANTHROPIC_API_KEY` set
+      (`test_build_dry_run_prints_pairing_then_4_chunks_with_no_client`, P5-04).
 - [ ] The plan §6 real-run criterion — "real run produces valid `NoteWeek`" — is
       checked manually once with a real `ANTHROPIC_API_KEY` (no pytest test touches
       the network, plan §8): `build` on the fixture PPTX+VTT into a scratch dir,
       output validates and `lecturenotes render` accepts it; date and model noted
-      here when ticked.
-- [ ] From a clean checkout:
+      here when ticked. **Pending — P5-04's session had no API key**; run
+      `uv run lecturenotes build tests/fixtures/decks/lecture01.pptx
+      tests/fixtures/captions/lecture01.vtt --course CS-RL-101 --week 1 --yes -o
+      /tmp/w1-scratch` then `uv run lecturenotes render /tmp/w1-scratch/cs-rl-101-w01.json`,
+      and note date + model here.
+- [x] From a clean checkout (checked 2026-09-04):
 
 ```
 uv sync --all-groups
@@ -294,6 +299,9 @@ uv run pytest && uv run ruff check . && uv run mypy && uv run lint-imports
 passes, and `uv run lecturenotes build tests/fixtures/decks/lecture01.pptx
 tests/fixtures/captions/lecture01.vtt --course CS-RL-101 --week 1 --dry-run` prints
 1 pairing and 4 chunks.
+
+**Phase 5 is done once the manual real-run box above is ticked.** Phase 6 tickets are
+not written yet.
 
 ## Ticket format
 

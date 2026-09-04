@@ -143,6 +143,38 @@ Invariants later phases depend on (P4-01..P4-04 decisions):
 two explicit paths — a debugging aid that must not grow pairing (§7.4), chunk merging
 (§9), or generation.
 
+## Generation (Phase 5)
+
+Invariants later phases depend on (P5-01..P5-04 decisions):
+
+- **`generate_lecture(deck, chunks, ...)` is the only entrypoint.** `merge_chunks`,
+  `generate_topic`, the prompt builders and the client/cache types are exported for
+  debugging and tests, not for re-composition elsewhere; the merge, both passes,
+  figure verification and asset minting all happen inside it.
+- **The fake is keyed by `request.key`, the cache by `prompt_version + model +
+  prompt`.** Request keys are `chunk:` + the §7.2 topic id (or `synthesis:<lecture>`),
+  never a prompt hash — prompt tuning must not break recorded fixtures; a tuned
+  prompt, model switch, or `PROMPT_VERSION` bump re-generates on purpose (§7.1).
+  Nothing consults `ANTHROPIC_API_KEY` at import time, client construction, or during
+  `--dry-run` — only a real `complete` does.
+- **The merge floor is 100 words (`--min-words`), and gap chunks fence merging.** An
+  under-floor slide chunk merges into an adjacent slide chunk, never across a gap and
+  never into one — board work must not cite slides, and the §4.1 gap signal must
+  survive for Phase 9. Dry-run chunking and real-run chunking go through the same
+  `merge_chunks` call with the same floor, always.
+- **Assets are minted id-keyed into `media/`**, only for images a `Figure` actually
+  references; `MediaAsset.source` is a POSIX path relative to the week JSON's
+  directory, so re-runs overwrite in place and the P3-03 emitter needs no change.
+- **Pairing is sorted filename order, printed, and confirmed** — never inferred
+  (§7.4). Non-TTY stdin without `--yes` is a hard error, never a hang or a silent
+  proceed.
+
+`lecturenotes build PATHS... --course TEXT --week N [-o DIR] [--dry-run] [--yes]
+[--model ID] [--min-words N] [--cache-dir DIR]` writes `<out>/<week_id>.json` plus
+`media/`; `render` presents it (§7.1's tuning loop, two commands). It must not grow
+rendering, emitting, or a format flag before Phase 6, nor alignment knobs
+(`--min-gap-s`/`--min-silence-s` stay on `align`, the debugging aid).
+
 ## Boundary rules
 
 - `model/` imports nothing else in the package.
@@ -164,6 +196,7 @@ uv run lecturenotes captions tests/fixtures/captions/lecture01.vtt   # smoke: 22
 uv run lecturenotes slides tests/fixtures/decks/lecture01.pdf         # smoke: 3 slides
 uv run lecturenotes render tests/fixtures/notes/week01.json           # smoke: 1 document
 uv run lecturenotes align tests/fixtures/decks/lecture01.pdf tests/fixtures/captions/lecture01.vtt   # smoke: 4 chunks
+uv run lecturenotes build tests/fixtures/decks/lecture01.pptx tests/fixtures/captions/lecture01.vtt --course CS-RL-101 --week 1 --dry-run   # smoke: 1 pairing, 4 chunks
 ```
 
 ## Working conventions
