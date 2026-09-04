@@ -232,8 +232,68 @@ uv run pytest && uv run ruff check . && uv run mypy && uv run lint-imports
 passes, and `uv run lecturenotes align tests/fixtures/decks/lecture01.pdf
 tests/fixtures/captions/lecture01.vtt` prints 4 chunks.
 
-**Phase 4 is done.** Phase 5 (generation) can start; its tickets will be added to this
-index in a later session.
+**Phase 4 is done.** Phase 5 tickets are below.
+
+## Phase 5 — Generation (chunk + synthesis)
+
+Plan §6: *done when `build --dry-run` shows chunking; real run produces valid
+`NoteWeek`.* Plan §3 stage 5: `[Chunk]` → `NoteLecture` — the LLM stage, a per-chunk
+pass plus a lecture-level synthesis pass (§4.2), with `Callout(EXAM)` and
+`Callout(UNCERTAIN)` carrying the highest-value content. Plan §7.1: responses cached
+by `hash(chunk_content + prompt_version + model)`. Plan §7.4: the file pairing is
+printed and confirmed. Plan §8: the LLM client sits behind an interface with a
+recorded-response fake — no test touches the network — and `--dry-run` stops before
+generation and prints the chunking. The two §9 decisions flagged "worth settling
+before phase 5" are settled: a word-count merge floor (default 100 — P5-02 records
+why not the suggested 120) and prose summary + bullet key points per topic.
+
+Phase 5 fills `lecturenotes/generate/` with three modules — the client seam and
+cache, then prompts and assembly — plus the `build` command; each ticket consumes the
+previous ticket's output, and the hand-written fixtures close the loop the P4-03
+spans were designed for: with the recorded fake, ingest → align → generate reproduces
+the `week01` lec01 notes that Phase 3 renders.
+
+```
+GenRequest / LLMClient / AnthropicClient / RecordedClient  generate/client.py   P5-01
+response_key, CachedClient                                 generate/cache.py    P5-01
+PROMPT_VERSION, ChunkNotes, chunk_prompt                   generate/prompts.py  P5-02
+merge_chunks, generate_topic                               generate/lecture.py  P5-02
+LectureSynthesis, synthesis_prompt                         generate/prompts.py  P5-03
+asset minting, generate_lecture(deck, chunks)              generate/lecture.py  P5-03
+lecturenotes build PATHS... (pairing, --dry-run)           cli.py               P5-04
+```
+
+| ID | Title | Depends on | Done when |
+|---|---|---|---|
+| [P5-01](P5-01-llm-client-fake-and-cache.md) | LLM client seam, recorded-response fake, response cache | P4-04 | `RecordedClient` serves by request key and misses loudly; the cache key changes iff `prompt_version`/model/prompt does; `anthropic` is a runtime dep; nothing needs an API key at import time |
+| [P5-02](P5-02-chunk-prompts-and-topic-generation.md) | Chunk pass: `merge_chunks`, chunk prompt, `generate_topic()`, responses fixture | P5-01 | The fixture chunks (81/120/103/103 words) survive the 100-word floor; the 4 generated topics reproduce `week01` lec01's (PPTX image id on the figure); EXAM-verbatim and UNCERTAIN prompt instructions pinned by tests |
+| [P5-03](P5-03-synthesis-and-generate-lecture.md) | Synthesis pass, asset minting, `generate_lecture()`, expected-notes fixture | P5-02 | `generate_lecture()` on PPTX+VTT with the fake equals the hand-written `lecture01.notes.json` in exactly 5 requests; `media/img-….png` written byte-equal to the deck asset |
+| [P5-04](P5-04-build-command-and-done-gate.md) | `lecturenotes build` (pairing, `--dry-run`, real run) + Phase 5 done-gate | P5-03 | `build <pptx> <vtt> --course CS-RL-101 --week 1 --dry-run` prints 1 pairing + 4 chunks with no API key; the fake-driven real run writes `cs-rl-101-w01.json` that `render` accepts; done-gate ticked; tickets moved to `completed/`; `CLAUDE.md` invariants added |
+
+**Suggested order:** strictly P5-01 → P5-02 → P5-03 → P5-04; the prompts need the
+client seam, the entrypoint composes the chunk pass, and the command composes
+everything — no parallelism here.
+
+### Phase 5 done-gate
+
+- [ ] The plan §6 dry-run criterion is a passing test: `tests/test_cli.py` drives
+      `build --dry-run` on the committed PPTX+VTT and gets the pairing plus the 4
+      chunks with no client constructed and no `ANTHROPIC_API_KEY` set.
+- [ ] The plan §6 real-run criterion — "real run produces valid `NoteWeek`" — is
+      checked manually once with a real `ANTHROPIC_API_KEY` (no pytest test touches
+      the network, plan §8): `build` on the fixture PPTX+VTT into a scratch dir,
+      output validates and `lecturenotes render` accepts it; date and model noted
+      here when ticked.
+- [ ] From a clean checkout:
+
+```
+uv sync --all-groups
+uv run pytest && uv run ruff check . && uv run mypy && uv run lint-imports
+```
+
+passes, and `uv run lecturenotes build tests/fixtures/decks/lecture01.pptx
+tests/fixtures/captions/lecture01.vtt --course CS-RL-101 --week 1 --dry-run` prints
+1 pairing and 4 chunks.
 
 ## Ticket format
 
@@ -252,4 +312,6 @@ Phase <phase> · Depends on: … · Size: S/M/L
 
 Python 3.12 · uv · pydantic v2 · pytest · hypothesis (from P1-01) · ruff · mypy (strict) · import-linter.
 Fixture generation uses `reportlab` and `python-pptx` in a separate `fixtures` dependency group;
-`python-pptx` and `pypdf` become runtime dependencies in Phase 2 (P2-01, P2-02).
+`python-pptx` and `pypdf` become runtime dependencies in Phase 2 (P2-01, P2-02);
+`anthropic>=1` becomes a runtime dependency in Phase 5 (P5-01), with `claude-opus-5`
+as the default model.
