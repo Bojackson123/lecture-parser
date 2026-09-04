@@ -280,15 +280,13 @@ everything — no parallelism here.
       `build --dry-run` on the committed PPTX+VTT and gets the pairing plus the 4
       chunks with no client constructed and no `ANTHROPIC_API_KEY` set
       (`test_build_dry_run_prints_pairing_then_4_chunks_with_no_client`, P5-04).
-- [ ] The plan §6 real-run criterion — "real run produces valid `NoteWeek`" — is
+- [x] The plan §6 real-run criterion — "real run produces valid `NoteWeek`" — is
       checked manually once with a real `ANTHROPIC_API_KEY` (no pytest test touches
       the network, plan §8): `build` on the fixture PPTX+VTT into a scratch dir,
-      output validates and `lecturenotes render` accepts it; date and model noted
-      here when ticked. **Pending — P5-04's session had no API key**; run
-      `uv run lecturenotes build tests/fixtures/decks/lecture01.pptx
-      tests/fixtures/captions/lecture01.vtt --course CS-RL-101 --week 1 --yes -o
-      /tmp/w1-scratch` then `uv run lecturenotes render /tmp/w1-scratch/cs-rl-101-w01.json`,
-      and note date + model here.
+      output validates and `lecturenotes render` accepts it. Run 2026-09-04 with
+      `claude-opus-5` (the default model): `build` wrote
+      `cs-rl-101-w01.json` (1 lecture, 4 topics, 1 asset) and `render` printed the
+      full document — anchors, EXAM/UNCERTAIN callouts and the figure included.
 - [x] From a clean checkout (checked 2026-09-04):
 
 ```
@@ -300,8 +298,7 @@ passes, and `uv run lecturenotes build tests/fixtures/decks/lecture01.pptx
 tests/fixtures/captions/lecture01.vtt --course CS-RL-101 --week 1 --dry-run` prints
 1 pairing and 4 chunks.
 
-**Phase 5 is done once the manual real-run box above is ticked.** Phase 6 tickets are
-not written yet.
+**Phase 5 is done.** Phase 6 tickets are not written yet.
 
 ## Ticket format
 
