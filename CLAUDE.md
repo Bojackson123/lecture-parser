@@ -120,6 +120,29 @@ the markdown renderer — a debugging aid, and the §7.1 tuning loop once Phase 
 generated weeks. It must not grow pairing, generation, or a format flag before Phase 6
 (which adds the flag when Anki gives it a second value).
 
+## Alignment (Phase 4)
+
+Invariants later phases depend on (P4-01..P4-04 decisions):
+
+- **`align_lecture(deck, segments)` is the only entrypoint.** `tokenize`,
+  `term_weights`, `slide_terms`, `score`, `span_units` and `solve_windows` are
+  exported for debugging and tests, not for re-composition elsewhere.
+- **Chunks partition the segments in order** and their slide ranges are
+  non-decreasing; chunk spans are unions of member segment spans — they may overlap
+  and leave holes, so sort by `start_s`, never assume a partition of time.
+- **Segments whose spans overlap (one cue's sentences) are never split across
+  chunks.**
+- **Speaker notes and image bytes never influence alignment** — the PDF and PPTX of a
+  deck align identically.
+- **Gap chunks (`slides=None`) are the §4.1 gap signal** (board work): real content
+  for generation, the frame-pull trigger for Phase 9, never dropped.
+- **Hidden slides are skipped, never renumbered** — no chunk cites a slide the reader
+  can't count to.
+
+`lecturenotes align DECK CAPTIONS [--json] [--min-gap-s N] [--min-silence-s N]` takes
+two explicit paths — a debugging aid that must not grow pairing (§7.4), chunk merging
+(§9), or generation.
+
 ## Boundary rules
 
 - `model/` imports nothing else in the package.
@@ -140,6 +163,7 @@ uv run lint-imports
 uv run lecturenotes captions tests/fixtures/captions/lecture01.vtt   # smoke: 22 lines
 uv run lecturenotes slides tests/fixtures/decks/lecture01.pdf         # smoke: 3 slides
 uv run lecturenotes render tests/fixtures/notes/week01.json           # smoke: 1 document
+uv run lecturenotes align tests/fixtures/decks/lecture01.pdf tests/fixtures/captions/lecture01.vtt   # smoke: 4 chunks
 ```
 
 ## Working conventions

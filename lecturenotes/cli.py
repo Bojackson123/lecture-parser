@@ -1,11 +1,14 @@
 """Command-line entrypoint for lecturenotes.
 
-Three inspection subcommands so far: ``captions`` (P1-04) prints the segments one
+Four inspection subcommands so far: ``captions`` (P1-04) prints the segments one
 caption file ingests to, ``slides`` (P2-04) prints the deck one slide file ingests to,
 ``render`` (P3-04) prints the markdown one ``NoteWeek`` JSON renders to (or emits it
-with ``-o``), so a bad transcript, a deck whose columns interleaved, or a renderer
-tweak can be inspected in seconds (plan §8, §7.1). They run one stage on one file only
-— pairing, chunking, alignment and generation belong to ``build`` (Phase 5).
+with ``-o``), ``align`` (P4-04) prints the chunks one deck and one caption file align
+to, so a bad transcript, a deck whose columns interleaved, a renderer tweak, or a bad
+chunk can be inspected in seconds (plan §8, §7.1). They run one stage on explicitly
+named files only — pairing and generation belong to ``build`` (Phase 5); in
+particular ``align`` takes two explicit paths and never guesses which caption file
+goes with which deck (§7.4).
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ import sys
 from pathlib import Path
 
 from lecturenotes import __version__
+from lecturenotes.align.boundaries import Chunk, align_lecture
 from lecturenotes.emit.filesystem import emit_filesystem
 from lecturenotes.ingest.captions import ingest_captions
 from lecturenotes.ingest.slides import Deck, ingest_slides
@@ -92,6 +96,32 @@ def build_parser() -> argparse.ArgumentParser:
         help="emit the documents and assets under DIR instead of printing",
     )
     render.add_argument("--json", action="store_true", help="print the RenderResult as JSON")
+
+    align = commands.add_parser(
+        "align",
+        help="align a slide deck with a caption file and print the chunks (a debugging aid)",
+        description="Ingest one .pptx/.pdf deck and one .vtt/.srt caption file, align "
+        "them, and print each chunk's header — 'slide N: Title' or '(no slide)' with "
+        "its time span — followed by its segments.",
+    )
+    align.add_argument("deck", type=Path, help="a .pptx or .pdf slide deck")
+    align.add_argument("captions", type=Path, help="a .vtt or .srt caption file")
+    align.add_argument("--json", action="store_true", help="print the chunks as JSON")
+    align.add_argument(
+        "--min-gap-s",
+        type=float,
+        default=60.0,
+        metavar="N",
+        help="flag an unmatched stretch as a gap only if it spans at least N seconds "
+        "(default 60)",
+    )
+    align.add_argument(
+        "--min-silence-s",
+        type=float,
+        default=1.0,
+        metavar="N",
+        help="a gap must be bracketed by silences of at least N seconds (default 1)",
+    )
     return parser
 
 
@@ -186,6 +216,46 @@ def cmd_render(args: argparse.Namespace) -> int:
     return 0
 
 
+def _print_chunks(chunks: list[Chunk], deck: Deck) -> None:
+    """Chunk headers come from the deck's titles, not the chunk — ``Chunk``
+    deliberately carries only numbers and segments (P4-04 decision)."""
+    titles = {slide.number: slide.title for slide in deck.slides}
+    for i, chunk in enumerate(chunks):
+        if i:
+            print()
+        span = f"[{format_clock(chunk.start_s)}–{format_clock(chunk.end_s)}]"
+        if chunk.slides is None:
+            print(f"--- (no slide) {span}")
+        elif chunk.slides.start == chunk.slides.end:
+            title = titles.get(chunk.slides.start)
+            name = f"slide {chunk.slides.start}"
+            if title is not None:
+                name += f": {title}"
+            print(f"--- {name} {span}")
+        else:  # not produced in v1 (width-1 ranges only), but never wrong
+            print(f"--- slides {chunk.slides.start}–{chunk.slides.end} {span}")
+        for s in chunk.segments:
+            print(f"  [{format_clock(s.start_s)}–{format_clock(s.end_s)}] {s.text}")
+
+
+def cmd_align(args: argparse.Namespace) -> int:
+    try:
+        deck = ingest_slides(args.deck)
+        segments = ingest_captions(args.captions)
+    except (OSError, ValueError) as exc:  # missing file, bad suffix, parse errors
+        print(f"lecturenotes align: {exc}", file=sys.stderr)
+        return 2
+    chunks = align_lecture(
+        deck, segments, min_gap_s=args.min_gap_s, min_silence_s=args.min_silence_s
+    )
+    _utf8_stdout()
+    if args.json:
+        print(json.dumps([chunk.model_dump() for chunk in chunks], indent=2))
+    else:
+        _print_chunks(chunks, deck)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
@@ -203,6 +273,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_slides(args)
     if args.command == "render":
         return cmd_render(args)
+    if args.command == "align":
+        return cmd_align(args)
     parser.print_help()
     return 0
 
