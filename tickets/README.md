@@ -322,9 +322,9 @@ lecturenotes render FILE --format {markdown,anki}          cli.py               
 
 | ID | Title | Depends on | Done when |
 |---|---|---|---|
-| [P6-01](P6-01-card-coverage-and-expected-deck.md) | Card coverage, prompt pin, hand-written expected deck | P5-04 | Every `week01` topic has ≥ 1 card and the P5 fixtures agree; "at least one card per topic" pinned in the chunk prompt; `week01.anki.txt` committed with 6 header lines + 8 rows; `week01.md` untouched |
-| [P6-02](P6-02-anki-renderer.md) | Anki renderer | P6-01 | `AnkiRenderer` output equals `week01.anki.txt` byte-for-byte with an empty asset manifest; guid/quoting/math ad-hoc cases pass; all four contract properties pass for both renderers |
-| [P6-03](P6-03-render-format-flag-and-done-gate.md) | `render --format` flag + Phase 6 done-gate | P6-02 | `render week01.json --format anki` prints the 8-card deck and the default stays markdown; real-Anki double-import shows 8 added then 0; done-gate ticked; tickets moved; `CLAUDE.md` invariants added |
+| [P6-01](completed/P6-01-card-coverage-and-expected-deck.md) | Card coverage, prompt pin, hand-written expected deck | P5-04 | Every `week01` topic has ≥ 1 card and the P5 fixtures agree; "at least one card per topic" pinned in the chunk prompt; `week01.anki.txt` committed with 6 header lines + 8 rows; `week01.md` untouched |
+| [P6-02](completed/P6-02-anki-renderer.md) | Anki renderer | P6-01 | `AnkiRenderer` output equals `week01.anki.txt` byte-for-byte with an empty asset manifest; guid/quoting/math ad-hoc cases pass; all four contract properties pass for both renderers |
+| [P6-03](completed/P6-03-render-format-flag-and-done-gate.md) | `render --format` flag + Phase 6 done-gate | P6-02 | `render week01.json --format anki` prints the 8-card deck and the default stays markdown; real-Anki double-import shows 8 added then 0; done-gate ticked; tickets moved; `CLAUDE.md` invariants added |
 
 **Suggested order:** strictly P6-01 → P6-02 → P6-03; the expected deck is the
 renderer's spec, and the flag needs a second renderer to select — no parallelism
@@ -332,15 +332,15 @@ here.
 
 ### Phase 6 done-gate
 
-- [ ] The plan §6 done-criterion is a passing test: `tests/render/test_anki.py`
+- [x] The plan §6 done-criterion is a passing test: `tests/render/test_anki.py`
       compares `AnkiRenderer` on the `week01` fixture byte-for-byte against the
-      hand-written `tests/fixtures/notes/week01.anki.txt`.
-- [ ] The four renderer contract properties (plan §8) pass un-skipped for **both**
-      `markdown` and `anki` in `tests/contract/test_renderers.py`.
+      hand-written `tests/fixtures/notes/week01.anki.txt` (P6-02).
+- [x] The four renderer contract properties (plan §8) pass un-skipped for **both**
+      `markdown` and `anki` in `tests/contract/test_renderers.py` (P6-02).
 - [ ] The §7.2 criterion is observed for real, once, manually: the emitted `.txt`
       imported into a real Anki adds 8 notes; importing it again adds 0 (guids
       update in place).
-- [ ] From a clean checkout:
+- [x] From a clean checkout (checked 2026-09-04):
 
 ```
 uv sync --all-groups

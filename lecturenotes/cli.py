@@ -9,8 +9,9 @@ over and stops before any client exists (§8).
 
 Four inspection subcommands besides it: ``captions`` (P1-04) prints the segments one
 caption file ingests to, ``slides`` (P2-04) prints the deck one slide file ingests to,
-``render`` (P3-04) prints the markdown one ``NoteWeek`` JSON renders to (or emits it
-with ``-o``), ``align`` (P4-04) prints the chunks one deck and one caption file align
+``render`` (P3-04; ``--format`` P6-03) prints what one ``NoteWeek`` JSON renders to in
+the chosen format (or emits it with ``-o``), ``align`` (P4-04) prints the chunks one
+deck and one caption file align
 to, so a bad transcript, a deck whose columns interleaved, a renderer tweak, or a bad
 chunk can be inspected in seconds (plan §8, §7.1). They run one stage on explicitly
 named files only — pairing and generation belong to ``build``; in particular
@@ -25,6 +26,7 @@ import io
 import json
 import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 from lecturenotes import __version__
@@ -37,8 +39,16 @@ from lecturenotes.generate.prompts import PROMPT_VERSION
 from lecturenotes.ingest.captions import ingest_captions
 from lecturenotes.ingest.slides import Deck, ingest_slides
 from lecturenotes.model import NoteWeek, SourceRef
-from lecturenotes.render.base import RenderOptions, format_clock
+from lecturenotes.render.anki import AnkiRenderer
+from lecturenotes.render.base import Renderer, RenderOptions, format_clock
 from lecturenotes.render.markdown import MarkdownRenderer
+
+# The P6-03 format table: Phase 7 adds Notion by adding one entry. A dict, not a
+# plugin registry — two renderers don't justify discovery.
+_RENDERERS: dict[str, Callable[[], Renderer]] = {
+    "markdown": MarkdownRenderer,
+    "anki": AnkiRenderer,
+}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -91,8 +101,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     render = commands.add_parser(
         "render",
-        help="render a NoteWeek JSON to markdown (a debugging aid)",
-        description="Load one NoteWeek JSON and render it with the markdown renderer: "
+        help="render a NoteWeek JSON to a chosen format (a debugging aid)",
+        description="Load one NoteWeek JSON and render it with the chosen renderer: "
         "print each document after a '--- name' line, or emit the documents and their "
         "assets under a directory with -o.",
     )
@@ -108,6 +118,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="emit the documents and assets under DIR instead of printing",
     )
     render.add_argument("--json", action="store_true", help="print the RenderResult as JSON")
+    render.add_argument(
+        "--format",
+        choices=sorted(_RENDERERS),
+        default="markdown",
+        help="output format (default: markdown)",
+    )
 
     align = commands.add_parser(
         "align",
@@ -264,7 +280,7 @@ def cmd_render(args: argparse.Namespace) -> int:
     except (OSError, ValueError) as exc:  # missing file, bad JSON, ValidationError
         print(f"lecturenotes render: {exc}", file=sys.stderr)
         return 2
-    result = MarkdownRenderer().render(week, RenderOptions())
+    result = _RENDERERS[args.format]().render(week, RenderOptions())
     if args.out is not None:
         try:
             # asset_root stays at its cwd default: the fixture's sources are

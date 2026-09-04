@@ -576,6 +576,75 @@ def test_render_json_revalidates_to_one_document_and_one_asset(
     assert [a.id for a in result.assets] == ["fig-value-iteration-convergence"]
 
 
+# --- --format (P6-03) -------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def expected_anki_deck(fixtures_dir: Path) -> str:
+    """Hand-written (P6-01) — bytes, not read_text, so newline handling can't lie."""
+    return (fixtures_dir / "notes" / "week01.anki.txt").read_bytes().decode("utf-8")
+
+
+def test_render_format_anki_prints_the_expected_deck(
+    week_json_path: str, expected_anki_deck: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["render", week_json_path, "--format", "anki"]) == 0
+    captured = capsys.readouterr()
+    header, _, body = captured.out.partition("\n")
+    assert header == "--- cs-rl-101-w01.txt"
+    assert body == expected_anki_deck
+    assert len([line for line in body.splitlines() if line.startswith("#")]) == 6
+    assert len([line for line in body.splitlines() if "\t" in line]) == 8
+    assert captured.err == ""
+
+
+def test_render_format_markdown_prints_exactly_what_no_flag_prints(
+    week_json_path: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["render", week_json_path]) == 0
+    default_out = capsys.readouterr().out
+    assert main(["render", week_json_path, "--format", "markdown"]) == 0
+    assert capsys.readouterr().out == default_out
+
+
+def test_render_format_anki_out_writes_deck_and_no_assets_dir(
+    week_json_path: str,
+    expected_anki_deck: str,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The deck's manifest is empty, and the emitter creates ``assets/`` only when the
+    manifest is non-empty (P3-03) — so an Anki emit is exactly one file."""
+    assert main(["render", week_json_path, "--format", "anki", "-o", str(tmp_path)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+    deck = tmp_path / "cs-rl-101-w01.txt"
+    assert deck.read_bytes().decode("utf-8") == expected_anki_deck
+    assert not (tmp_path / "assets").exists()
+
+
+def test_render_format_notion_is_an_argparse_choices_error(
+    week_json_path: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        main(["render", week_json_path, "--format", "notion"])
+    assert excinfo.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "invalid choice" in captured.err
+
+
+def test_render_format_anki_json_revalidates_to_one_document_and_no_assets(
+    week_json_path: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """--json stays format-agnostic: it dumps ``RenderResult`` whatever produced it."""
+    assert main(["render", "--json", week_json_path, "--format", "anki"]) == 0
+    result = RenderResult.model_validate_json(capsys.readouterr().out)
+    assert [d.name for d in result.documents] == ["cs-rl-101-w01.txt"]
+    assert list(result.assets) == []
+
+
 # --- errors -----------------------------------------------------------------------
 
 

@@ -115,10 +115,12 @@ Invariants later phases depend on (P3-01..P3-04 decisions):
 - **`render/` and `emit/` never import `ingest/`, `align/` or `generate/`**
   (import-linter, 4 contracts).
 
-`lecturenotes render FILE [-o DIR] [--json]` renders one existing `NoteWeek` JSON with
-the markdown renderer — a debugging aid, and the §7.1 tuning loop once Phase 5 caches
-generated weeks. It must not grow pairing, generation, or a format flag before Phase 6
-(which adds the flag when Anki gives it a second value).
+`lecturenotes render FILE [-o DIR] [--json] [--format {anki,markdown}]` renders one
+existing `NoteWeek` JSON with the chosen renderer (default `markdown`, so every
+pre-P6-03 invocation is unchanged) — a debugging aid, and the §7.1 tuning loop: build
+once, render cheaply many times, now across formats from the same cached JSON. It must
+not grow pairing or generation logic; Phase 7 adds `notion` as one `_RENDERERS` entry
+in `cli.py`.
 
 ## Alignment (Phase 4)
 
@@ -175,6 +177,25 @@ Invariants later phases depend on (P5-01..P5-04 decisions):
 rendering, emitting, or a format flag before Phase 6, nor alignment knobs
 (`--min-gap-s`/`--min-silence-s` stay on `align`, the debugging aid).
 
+## Anki deck (Phase 6)
+
+Invariants later phases depend on (P6-01..P6-03 decisions):
+
+- **Every topic carries ≥ 1 card** — a generation guarantee, pinned in the chunk
+  prompt (P6-01), never patched in a renderer: a renderer that padded missing cards
+  would be inventing content.
+- **Card guids are 16 hex of sha256 over `topic_id + "\n" + raw front`** (the IR
+  front, before math translation) — renderer-local, in `render/anki.py`, never in
+  `model/ids.py`. A reworded front is deliberately a *new* card; re-importing an
+  unchanged deck updates in place (§7.2, observed against a real Anki).
+- **The deck is `CardSeed`s only.** Glossary definitions stay out; a card-less topic
+  contributes no rows.
+- **Paired `$…$` → `\(…\)` in card fields** is the renderer-local math dialect for
+  Anki's MathJax, applied nowhere outside `render/anki.py`; unpaired `$` passes
+  through.
+- **`--format` selects presentation only** — `render` grows no pairing, generation or
+  alignment logic; both formats read the same cached week JSON.
+
 ## Boundary rules
 
 - `model/` imports nothing else in the package.
@@ -195,6 +216,7 @@ uv run lint-imports
 uv run lecturenotes captions tests/fixtures/captions/lecture01.vtt   # smoke: 22 lines
 uv run lecturenotes slides tests/fixtures/decks/lecture01.pdf         # smoke: 3 slides
 uv run lecturenotes render tests/fixtures/notes/week01.json           # smoke: 1 document
+uv run lecturenotes render tests/fixtures/notes/week01.json --format anki   # smoke: 8 cards
 uv run lecturenotes align tests/fixtures/decks/lecture01.pdf tests/fixtures/captions/lecture01.vtt   # smoke: 4 chunks
 uv run lecturenotes build tests/fixtures/decks/lecture01.pptx tests/fixtures/captions/lecture01.vtt --course CS-RL-101 --week 1 --dry-run   # smoke: 1 pairing, 4 chunks
 ```
