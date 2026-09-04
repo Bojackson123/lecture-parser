@@ -1,5 +1,6 @@
-"""P1-04 ``lecturenotes captions FILE``, P2-04 ``lecturenotes slides FILE`` and
-P3-04 ``lecturenotes render FILE [-o DIR]``.
+"""P1-04 ``lecturenotes captions FILE``, P2-04 ``lecturenotes slides FILE``,
+P3-04 ``lecturenotes render FILE [-o DIR]`` and P4-04 ``lecturenotes align DECK
+CAPTIONS``.
 
 Debugging commands, not the product (plan §8: "bad notes are almost always bad
 chunks"): ``captions`` prints one line per segment, ``[m:ss–m:ss] text``, or the
@@ -7,9 +8,11 @@ segments as JSON that ``Segment.model_validate`` accepts back; ``slides`` prints
 deck - titles, blocks in reading order, images found, notes on request - or the
 ``Deck`` as JSON that ``Deck.model_validate_json`` accepts back; ``render`` prints the
 markdown one ``NoteWeek`` JSON renders to (or emits it to a directory with ``-o``), or
-the ``RenderResult`` as JSON that ``RenderResult.model_validate_json`` accepts back.
-Everything goes through ``main([...])`` and ``capsys`` so the tests exercise exactly
-what the console script runs.
+the ``RenderResult`` as JSON that ``RenderResult.model_validate_json`` accepts back;
+``align`` prints the chunks one deck and one caption file align to, or the chunk list
+as JSON that ``Chunk.model_validate`` accepts back. Everything goes through
+``main([...])`` and ``capsys`` so the tests exercise exactly what the console script
+runs.
 """
 
 from __future__ import annotations
@@ -24,6 +27,7 @@ from pptx import Presentation
 from pptx.util import Inches
 
 import lecturenotes
+from lecturenotes.align.boundaries import Chunk
 from lecturenotes.cli import format_clock, main
 from lecturenotes.ingest.slides import Deck, image_id
 from lecturenotes.render.base import RenderResult
@@ -60,6 +64,7 @@ def test_no_arguments_prints_help_and_returns_0(capsys: pytest.CaptureFixture[st
     assert "captions" in out
     assert "slides" in out
     assert "render" in out
+    assert "align" in out
 
 
 # --- plain lines ------------------------------------------------------------------
@@ -598,4 +603,110 @@ def test_render_missing_file_returns_2_with_stderr_only(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "nope.json" in captured.err
+    assert "Traceback" not in captured.err
+
+
+# =====================================================================================
+# P4-04: ``lecturenotes align DECK CAPTIONS``
+# =====================================================================================
+
+CHUNK_COUNT = 4
+# The slide → time map in tests/fixtures/README.md, transcribed — never read from the
+# aligner's output. The gap header says "(no slide)", a fact about the material, not
+# "gap", which is pipeline jargon that reads as an error.
+EXPECTED_CHUNK_HEADERS = [
+    "--- slide 1: Markov Decision Processes [0:01–2:29]",
+    "--- (no slide) [2:31–4:28]",
+    "--- slide 2: The Bellman Equation [4:31–6:59]",
+    "--- slide 3: Value Iteration [7:01–9:05]",
+]
+
+
+def _chunk_headers(out: str) -> list[str]:
+    return [line for line in out.splitlines() if line.startswith("--- ")]
+
+
+def _segment_lines(out: str) -> list[str]:
+    return [line for line in out.splitlines() if line.startswith("  [")]
+
+
+# --- plain lines ------------------------------------------------------------------
+
+
+def test_align_prints_4_chunk_headers_in_order(
+    pdf_path: str, vtt_path: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["align", pdf_path, vtt_path]) == 0
+    captured = capsys.readouterr()
+    assert _chunk_headers(captured.out) == EXPECTED_CHUNK_HEADERS
+    assert captured.err == ""
+
+
+def test_align_indents_all_22_segments_under_their_chunks(
+    pdf_path: str, vtt_path: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    main(["align", pdf_path, vtt_path])
+    lines = _segment_lines(capsys.readouterr().out)
+    assert len(lines) == SEGMENT_COUNT
+    assert lines[0].startswith("  [0:01–0:26] welcome back")
+    assert lines[-1].startswith("  [8:40–9:05] that's it")
+
+
+def test_align_pptx_and_srt_print_identical_stdout(
+    pptx_path: str, pdf_path: str, vtt_path: str, srt_path: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The cross-format invariant, end to end from the shell."""
+    assert main(["align", pdf_path, vtt_path]) == 0
+    from_pdf_vtt = capsys.readouterr().out
+    assert main(["align", pptx_path, srt_path]) == 0
+    assert capsys.readouterr().out == from_pdf_vtt
+
+
+def test_align_min_gap_s_is_forwarded(
+    pdf_path: str, vtt_path: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """1000 s exceeds the dice detour's span, so no stretch qualifies as a gap."""
+    assert main(["align", "--min-gap-s", "1000", pdf_path, vtt_path]) == 0
+    headers = _chunk_headers(capsys.readouterr().out)
+    assert len(headers) == 3
+    assert not any("(no slide)" in header for header in headers)
+
+
+# --- --json -----------------------------------------------------------------------
+
+
+def test_align_json_revalidates_to_4_chunks_with_a_gap(
+    pdf_path: str, vtt_path: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["align", "--json", pdf_path, vtt_path]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert isinstance(data, list)
+    assert len(data) == CHUNK_COUNT
+    chunks = [Chunk.model_validate(element) for element in data]
+    assert data[1]["slides"] is None
+    assert sum(len(chunk.segments) for chunk in chunks) == SEGMENT_COUNT
+
+
+# --- errors -----------------------------------------------------------------------
+
+
+def test_align_wrong_deck_returns_2_with_stderr_only(
+    week_json_path: str, vtt_path: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["align", week_json_path, vtt_path]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.startswith("lecturenotes align: ")
+    assert "Traceback" not in captured.err
+
+
+def test_align_missing_captions_returns_2_with_stderr_only(
+    pdf_path: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    missing = str(tmp_path / "nope.vtt")
+    assert main(["align", pdf_path, missing]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "nope.vtt" in captured.err
     assert "Traceback" not in captured.err
