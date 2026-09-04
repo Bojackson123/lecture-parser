@@ -1,0 +1,14 @@
+#separator:tab
+#html:false
+#notetype:Basic
+#deck:CS-RL-101::Week 1
+#guid column:1
+#tags column:4
+abe3feaddecbb5dc	What are the four ingredients of an MDP?	States, actions, rewards, and a transition function. [lec01 · 0:01 · slide 1]	mdp
+53a1054a7ffcd822	What does the discount factor gamma control?	How much later rewards count relative to immediate ones. [lec01 · 0:01 · slide 1]	mdp discounting
+11e40d6813e51ed3	With one optional reroll of a fair die, which first rolls do you keep?	4, 5 or 6 — anything that beats the 3.5 expected value of rerolling. [lec01 · 2:31]	dynamic-programming
+5e89131a0c07d275	State the Bellman optimality equation for \(V(s)\).	\(V(s) = \max_a \Big[ R(s, a) + \gamma \sum_{s'} T(s, a, s')\, V(s') \Big]\) [lec01 · 4:31 · slide 2]	bellman exam
+c78ed341886d23a7	Why is the Bellman equation called recursive?	The value function \(V\) appears on both sides of the equation. [lec01 · 4:31 · slide 2]	bellman
+fdc4e741e5d4625e	When does value iteration stop, and what do you read off afterwards?	When the biggest per-sweep change falls below the tolerance epsilon; then pick the best action in every state to get the greedy policy. [lec01 · 7:01 · slide 3]	value-iteration
+a736a069760cddef	What distinguishes the Bellman expectation equation from the optimality equation?	Expectation fixes the action via a policy and is linear; optimality has a max over actions. [lec02 · 0:00 · slide 1]	bellman policy
+d911101735cefe3f	What are the two alternating steps of policy iteration?	Evaluate the current policy exactly, then improve it greedily; stop when the policy stops changing. [lec02 · 3:00 · slides 2–3]	policy-iteration

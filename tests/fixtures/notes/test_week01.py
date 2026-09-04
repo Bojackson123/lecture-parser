@@ -86,8 +86,8 @@ def test_nested_bullets_table_rows_equation_label_python_code(week01: NoteWeek) 
 
 
 def test_cards_glossary_open_questions(week01: NoteWeek) -> None:
-    topics_with_cards = [t for lec in week01.lectures for t in lec.topics if t.cards]
-    assert len(topics_with_cards) >= 2
+    # Every topic carries >= 1 card (P6-01): a cards-only deck must keep every anchor.
+    assert all(topic.cards for lec in week01.lectures for topic in lec.topics)
     assert any(len(lec.glossary) >= 2 and lec.open_questions for lec in week01.lectures)
 
 

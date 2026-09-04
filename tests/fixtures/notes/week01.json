@@ -251,7 +251,15 @@
               "text": "The lecturer said the error 'shrinks by a factor of gamma every time'. That is the contraction bound; the observed per-sweep ratio can be smaller."
             }
           ],
-          "cards": []
+          "cards": [
+            {
+              "front": "When does value iteration stop, and what do you read off afterwards?",
+              "back": "When the biggest per-sweep change falls below the tolerance epsilon; then pick the best action in every state to get the greedy policy.",
+              "tags": [
+                "value-iteration"
+              ]
+            }
+          ]
         }
       ],
       "glossary": [
@@ -386,7 +394,15 @@
               "text": "Be able to compare policy iteration with value iteration: few expensive iterations versus many cheap ones."
             }
           ],
-          "cards": []
+          "cards": [
+            {
+              "front": "What are the two alternating steps of policy iteration?",
+              "back": "Evaluate the current policy exactly, then improve it greedily; stop when the policy stops changing.",
+              "tags": [
+                "policy-iteration"
+              ]
+            }
+          ]
         }
       ],
       "glossary": [

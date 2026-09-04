@@ -56,7 +56,7 @@ __all__ = [
     "synthesis_prompt",
 ]
 
-PROMPT_VERSION: str = "1"
+PROMPT_VERSION: str = "2"
 
 # The exact sentence the gap-chunk prompt test pins: gap chunks are the §4.1 board-work
 # signal, and the model must know there is no slide context rather than inventing one.
@@ -71,6 +71,8 @@ _INSTRUCTIONS = """\
 - Start the body with a short prose summary, then a bullet list of key points.
 - Write mathematics as LaTeX, only inside Equation nodes.
 - Quote exam or emphasis remarks near-verbatim in a Callout of kind EXAM.
+- Produce at least one card per topic: a question a student can answer from the body \
+alone.
 - Do not smooth over gaps: use a Callout of kind UNCERTAIN instead of guessing where \
 the transcript is garbled or ambiguous.
 - Reference only the listed image ids in Figure nodes, and give every referenced id \

@@ -305,6 +305,16 @@ def _lecture01() -> NoteLecture:
                 ),
             ),
         ],
+        cards=[
+            CardSeed(
+                front="When does value iteration stop, and what do you read off afterwards?",
+                back=(
+                    "When the biggest per-sweep change falls below the tolerance epsilon; "
+                    "then pick the best action in every state to get the greedy policy."
+                ),
+                tags=["value-iteration"],
+            ),
+        ],
     )
 
     return NoteLecture(
@@ -437,6 +447,16 @@ def _lecture02() -> NoteLecture:
                     "Be able to compare policy iteration with value iteration: few expensive "
                     "iterations versus many cheap ones."
                 ),
+            ),
+        ],
+        cards=[
+            CardSeed(
+                front="What are the two alternating steps of policy iteration?",
+                back=(
+                    "Evaluate the current policy exactly, then improve it greedily; stop "
+                    "when the policy stops changing."
+                ),
+                tags=["policy-iteration"],
             ),
         ],
     )

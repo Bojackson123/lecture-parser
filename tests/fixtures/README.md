@@ -29,6 +29,9 @@ notes/week01.json           its committed snapshot; regenerate with `--write`, n
 notes/week01.md             the week rendered as one markdown page, hand-written (P3-02);
                             transcribed from week01.py and never regenerated from the code
                             under test — if the format changes on purpose, edit it deliberately
+notes/week01.anki.txt       the week's cards as one Anki notes-in-plain-text file, hand-written
+                            (P6-01); transcribed from week01.py and never regenerated from the
+                            code under test — if the format changes on purpose, edit it deliberately
 test_fixtures_sanity.py     line counts, third-party readers, size caps
 ```
 

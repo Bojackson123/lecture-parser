@@ -26,7 +26,8 @@ PPTX_IMAGE_ID = "img-a63ae9b7dc5e9397"
 
 
 def test_prompt_version_is_pinned() -> None:
-    assert PROMPT_VERSION == "1"
+    # "2": P6-01 added the at-least-one-card instruction (a deliberate §7.1 bump).
+    assert PROMPT_VERSION == "2"
 
 
 def test_slide_chunk_key_is_chunk_plus_topic_id(chunks: list[Chunk], deck: Deck) -> None:
@@ -118,6 +119,7 @@ def test_instruction_pins(chunks: list[Chunk], deck: Deck) -> None:
         )
         assert "Write mathematics as LaTeX, only inside Equation nodes" in prompt
         assert "Quote exam or emphasis remarks near-verbatim in a Callout of kind EXAM" in prompt
+        assert "Produce at least one card per topic" in prompt
         assert "use a Callout of kind UNCERTAIN instead of guessing" in prompt
         assert "Reference only the listed image ids in Figure nodes" in prompt
 
