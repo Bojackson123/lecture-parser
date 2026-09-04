@@ -337,9 +337,12 @@ here.
       hand-written `tests/fixtures/notes/week01.anki.txt` (P6-02).
 - [x] The four renderer contract properties (plan §8) pass un-skipped for **both**
       `markdown` and `anki` in `tests/contract/test_renderers.py` (P6-02).
-- [ ] The §7.2 criterion is observed for real, once, manually: the emitted `.txt`
+- [x] The §7.2 criterion is observed for real, once, manually: the emitted `.txt`
       imported into a real Anki adds 8 notes; importing it again adds 0 (guids
-      update in place).
+      update in place). Run 2026-09-04: first import added the 8 notes; importing
+      the identical file again added 0 — 7 reported unchanged and 1 (the Bellman
+      formula card) reported updated in place, an Anki field-normalization artifact,
+      not a duplicate. Update-not-duplicate observed end-to-end.
 - [x] From a clean checkout (checked 2026-09-04):
 
 ```
@@ -349,6 +352,8 @@ uv run pytest && uv run ruff check . && uv run mypy && uv run lint-imports
 
 passes, and `uv run lecturenotes render tests/fixtures/notes/week01.json --format
 anki` prints 1 document with 8 card rows.
+
+**Phase 6 is done.** Phase 7 tickets are not written yet.
 
 ## Ticket format
 
