@@ -115,12 +115,12 @@ Invariants later phases depend on (P3-01..P3-04 decisions):
 - **`render/` and `emit/` never import `ingest/`, `align/` or `generate/`**
   (import-linter, 4 contracts).
 
-`lecturenotes render FILE [-o DIR] [--json] [--format {anki,markdown}]` renders one
-existing `NoteWeek` JSON with the chosen renderer (default `markdown`, so every
+`lecturenotes render FILE [-o DIR] [--json] [--format {anki,markdown,notion}]` renders
+one existing `NoteWeek` JSON with the chosen renderer (default `markdown`, so every
 pre-P6-03 invocation is unchanged) — a debugging aid, and the §7.1 tuning loop: build
 once, render cheaply many times, now across formats from the same cached JSON. It must
-not grow pairing or generation logic; Phase 7 adds `notion` as one `_RENDERERS` entry
-in `cli.py`.
+not grow pairing or generation logic; Phase 7 added `notion` as exactly the one
+`_RENDERERS` entry in `cli.py` it reserved (P7-05).
 
 ## Alignment (Phase 4)
 
@@ -196,6 +196,37 @@ Invariants later phases depend on (P6-01..P6-03 decisions):
 - **`--format` selects presentation only** — `render` grows no pairing, generation or
   alignment logic; both formats read the same cached week JSON.
 
+## Notion (Phase 7)
+
+Invariants later phases depend on (P7-01..P7-05 decisions):
+
+- **The four §2.3 limits are renderer-local in `render/notion.py`** (text runs ≤ 2,000
+  chars, children arrays ≤ 100, nesting ≤ 2, payloads ≤ 1,000 blocks / 100 top-level
+  elements), enforced at block-build time — never in the IR or upstream.
+- **The payload JSON is the renderer↔emitter contract**: one `{"page", "payloads"}`
+  document, blocks in Notion API shape verbatim, figures as `asset_placeholder`
+  nodes the emitter resolves by uploading — pinned by the hand-written
+  `tests/fixtures/notes/week01.notion.json` (the format spec, not a snapshot).
+- **The page title (course + week number) is the page identity** — a re-push updates
+  the same page at the same URL; retitling the course forks deliberately. No local
+  state file, no marker block.
+- **The emitter never reads the IR and archives-then-appends, never diffs** —
+  placeholder validation and asset reads happen before the first transport call, so a
+  bad render or missing file leaves the workspace untouched.
+- **`NOTION_TOKEN` is read only by `push`, at run time** — never at import, never
+  before validation, never a `--token` flag; the transport takes the token as a
+  constructor parameter and tests inject `FakeNotionTransport` via `_make_transport`.
+- **The inline `$…$` → equation-run math dialect never leaves `render/notion.py`**
+  (the Anki `\(…\)` doctrine, per target).
+- **`push` grows no pairing, generation or alignment logic** — it composes
+  `NotionRenderer` with `emit_notion`, nothing more.
+
+`lecturenotes push FILE --parent PAGE_ID [--asset-root DIR]` is stage 8 for the
+Notion target: credentials, network, side effects — kept out of `render` so the §7.1
+loop stays pure. `--asset-root` defaults to the week JSON's directory (the P5-03
+layout); the committed `week01.json` fixture's sources are repo-root-relative
+(P3-04), so pushing *it* needs `--asset-root .` from the repo root.
+
 ## Boundary rules
 
 - `model/` imports nothing else in the package.
@@ -217,6 +248,7 @@ uv run lecturenotes captions tests/fixtures/captions/lecture01.vtt   # smoke: 22
 uv run lecturenotes slides tests/fixtures/decks/lecture01.pdf         # smoke: 3 slides
 uv run lecturenotes render tests/fixtures/notes/week01.json           # smoke: 1 document
 uv run lecturenotes render tests/fixtures/notes/week01.json --format anki   # smoke: 8 cards
+uv run lecturenotes render tests/fixtures/notes/week01.json --format notion   # smoke: 1 page payload
 uv run lecturenotes align tests/fixtures/decks/lecture01.pdf tests/fixtures/captions/lecture01.vtt   # smoke: 4 chunks
 uv run lecturenotes build tests/fixtures/decks/lecture01.pptx tests/fixtures/captions/lecture01.vtt --course CS-RL-101 --week 1 --dry-run   # smoke: 1 pairing, 4 chunks
 ```
