@@ -523,10 +523,37 @@ async function refreshWeeks(selectedId) {
   await renderPreview();
 }
 
+// The last successful /api/render, so the download button can save exactly the
+// bytes previewed. The doc text is \n-joined UTF-8 — the cmd_build file convention.
+let lastRender = null;
+
+const _DOWNLOAD_TYPES = {
+  markdown: "text/markdown;charset=utf-8",
+  anki: "text/plain;charset=utf-8",
+};
+
+function downloadRendered() {
+  if (!lastRender) return;
+  for (const doc of lastRender.result.documents) {
+    const blob = new Blob([doc.text], { type: _DOWNLOAD_TYPES[lastRender.format] });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = doc.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+}
+
 async function renderPreview() {
   const container = $("preview");
   container.textContent = "";
   setError("review-error", "");
+  const download = $("download-rendered");
+  download.hidden = true;
+  lastRender = null;
   const week = $("week-select").value;
   if (!week) return;
   const format = document.querySelector("#format-tabs .active").dataset.format;
@@ -535,6 +562,13 @@ async function renderPreview() {
     if (format === "markdown") renderMarkdownPreview(container, result);
     else if (format === "anki") renderAnkiPreview(container, result);
     else renderNotionPreview(container, result);
+    // Markdown and anki are file targets — offer the previewed file itself.
+    // Notion's artifact is the push, not a download.
+    if (format in _DOWNLOAD_TYPES) {
+      lastRender = { format, result };
+      download.textContent = `Download ${result.documents.map((d) => d.name).join(", ")}`;
+      download.hidden = false;
+    }
   } catch (error) {
     setError("review-error", error.message);
   }
@@ -543,6 +577,7 @@ async function renderPreview() {
 
 function wireReview() {
   $("week-select").addEventListener("change", renderPreview);
+  $("download-rendered").addEventListener("click", downloadRendered);
   for (const tab of document.querySelectorAll("#format-tabs .tab")) {
     tab.addEventListener("click", () => {
       document.querySelectorAll("#format-tabs .tab").forEach((t) => t.classList.remove("active"));
