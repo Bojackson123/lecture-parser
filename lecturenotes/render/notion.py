@@ -255,9 +255,16 @@ def _node_blocks(
             language = node.language if node.language is not None else "plain text"
             return [_block("code", {"rich_text": _text_runs(code), "language": language})]
         case Callout():
+            # The markdown renderer's ``> **EXAM** — text``, in runs: the icon alone
+            # doesn't say what a kind means, so a bold label leads the text.
             emoji, color = CALLOUT_STYLE[node.kind]
+            runs = [
+                _text_run(node.kind.value, bold=True),
+                _text_run(" — "),
+                *_text_runs(node.text),
+            ]
             payload = {
-                "rich_text": _text_runs(node.text),
+                "rich_text": runs,
                 "icon": {"type": "emoji", "emoji": emoji},
                 "color": color,
             }
