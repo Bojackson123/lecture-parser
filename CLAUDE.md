@@ -113,7 +113,7 @@ Invariants later phases depend on (P3-01..P3-04 decisions):
 - **`tests/fixtures/notes/week01.md` is hand-written** and never regenerated from the
   code under test — it is the markdown format spec, not a snapshot.
 - **`render/` and `emit/` never import `ingest/`, `align/` or `generate/`**
-  (import-linter, 4 contracts).
+  (import-linter; 5 contracts since PW-01).
 
 `lecturenotes render FILE [-o DIR] [--json] [--format {anki,markdown,notion}]` renders
 one existing `NoteWeek` JSON with the chosen renderer (default `markdown`, so every
@@ -233,6 +233,41 @@ always wins). `.env` is gitignored; `.env.example` is the committed template. Th
 read-at-use-time doctrine is untouched: the values are still consulted only in
 `cmd_push` and a real `complete`.
 
+## Web GUI (Side-track W)
+
+`lecturenotes serve [--port N] [-o DIR] [--no-browser]` runs a loopback-only FastAPI
+server (127.0.0.1, hardcoded) with a single-page GUI for the whole pipeline. The web
+stack is an **optional extra** (`uv sync --extra web`); every other command works
+without it, and `serve` prints an install hint (exit 2) when it is absent.
+
+Invariants (PW-01..PW-06 decisions):
+
+- **`web/` is a composer like `cli.py`**: it calls the same library entrypoints and
+  grows no pipeline logic; nothing in the pipeline may import it (5th import-linter
+  contract). `pairing.py` holds the §7.4 helpers both frontends share — `cli.py`
+  re-imports them under their old private names.
+- **The §7.4 ritual survives HTTP**: `/api/pair` shows `collect_pairs` output as-is,
+  and `/api/build` carries the pairing the user confirmed — the server recomputes
+  and rejects any difference (400). There is no `--yes` analogue.
+- **`/api/dry-run` spends nothing**: no client construction, no key consulted —
+  same `merge_chunks` call and floor as the real run, pinned by ported `no_client`
+  tests against the `web.app._make_client` seam.
+- **One build at a time** (409 with the live job id), progress ticked once per LLM
+  `complete()`; `ProgressClient` wraps the `CachedClient` **outermost**, so cache
+  hits tick and a cached rebuild flies. The worker writes the week JSON with the
+  same UTF-8+LF bytes convention as `cmd_build`.
+- **Token doctrine unchanged**: `NOTION_TOKEN` is read in the push handler at
+  request time — never at import, never a form field, never persisted; the missing
+  token error constructs no transport (`web.app._make_transport` is the seam,
+  tests inject `FakeNotionTransport`).
+- **Weeks are addressed by filename stem**; `/ws/` serves workspace files read-only
+  (images/JSON/text), resolved paths prefix-checked against the workspace (403).
+- **The markdown preview (`mdToHtml` in `static/app.js`) is UI-local** — it parses
+  only the closed construct set `MarkdownRenderer` emits (spec:
+  `tests/fixtures/notes/week01.md`), the per-target-dialect doctrine applied to
+  previews. No CDN, no Node: the three `static/` files ship in the wheel and are
+  served via `importlib.resources`.
+
 ## Boundary rules
 
 - `model/` imports nothing else in the package.
@@ -245,7 +280,7 @@ import-linter enforces these: the contracts live in `pyproject.toml`
 ## Checks
 
 ```
-uv sync --all-groups
+uv sync --all-groups --all-extras
 uv run pytest
 uv run ruff check .
 uv run mypy
@@ -257,6 +292,7 @@ uv run lecturenotes render tests/fixtures/notes/week01.json --format anki   # sm
 uv run lecturenotes render tests/fixtures/notes/week01.json --format notion   # smoke: 1 page payload
 uv run lecturenotes align tests/fixtures/decks/lecture01.pdf tests/fixtures/captions/lecture01.vtt   # smoke: 4 chunks
 uv run lecturenotes build tests/fixtures/decks/lecture01.pptx tests/fixtures/captions/lecture01.vtt --course CS-RL-101 --week 1 --dry-run   # smoke: 1 pairing, 4 chunks
+uv run lecturenotes serve --no-browser   # smoke: binds http://127.0.0.1:8765 (blocks; Ctrl+C)
 ```
 
 ## Working conventions

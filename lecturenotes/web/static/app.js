@@ -559,7 +559,45 @@ function wireReview() {
   refreshWeeks().catch((error) => setError("review-error", error.message));
 }
 
+// --- 6: push -----------------------------------------------------------------------
+
+async function runPush() {
+  setError("push-error", "");
+  $("push-result").hidden = true;
+  const parent = $("parent-page").value.trim();
+  if (!parent) {
+    setError("push-error", "a parent page id is required");
+    return;
+  }
+  $("push-spinner").hidden = false;
+  $("run-push").disabled = true;
+  try {
+    const data = await api("POST", "/api/push", {
+      week_id: $("week-select").value,
+      parent_page_id: parent,
+    });
+    const result = $("push-result");
+    result.textContent =
+      `pushed "${data.title}": ${data.payloads} payload(s), ${data.assets} asset(s)`;
+    result.hidden = false;
+  } catch (error) {
+    setError("push-error", error.message);
+  }
+  $("push-spinner").hidden = true;
+  updatePushGate();
+}
+
+function updatePushGate() {
+  $("run-push").disabled = !$("week-select").value;
+}
+
+function wirePush() {
+  $("run-push").addEventListener("click", runPush);
+  document.addEventListener("week-selected", updatePushGate);
+}
+
 wireFilesAndPairing();
 wireChunks();
 wireBuild();
 wireReview();
+wirePush();

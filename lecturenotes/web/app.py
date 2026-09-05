@@ -8,6 +8,8 @@ underlying exceptions verbatim, the CLI's no-traceback doctrine over HTTP.
 
 from __future__ import annotations
 
+import json
+import os
 import re
 from collections.abc import Callable
 from importlib.resources import files
@@ -20,6 +22,7 @@ from pydantic import BaseModel, ConfigDict
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from lecturenotes.align.boundaries import Chunk, align_lecture
+from lecturenotes.emit.notion_api import NotionTransport, UrllibTransport, emit_notion
 from lecturenotes.generate.client import DEFAULT_MODEL, AnthropicClient, LLMClient
 from lecturenotes.generate.lecture import merge_chunks
 from lecturenotes.ingest.captions import ingest_captions
@@ -161,6 +164,17 @@ class BuildAccepted(_ApiModel):
     job_id: str
 
 
+class PushRequest(_ApiModel):
+    week_id: str
+    parent_page_id: str
+
+
+class PushResponse(_ApiModel):
+    title: str
+    payloads: int
+    assets: int
+
+
 _KNOWN_SUFFIXES = DECK_SUFFIXES | CAPTION_SUFFIXES
 
 
@@ -169,6 +183,13 @@ def _make_client(model: str) -> LLMClient:
     this, and ``ANTHROPIC_API_KEY`` handling stays inside ``AnthropicClient``
     (consulted only on the first real ``complete``, never here, never in dry-run)."""
     return AnthropicClient(model)
+
+
+def _make_transport(token: str) -> NotionTransport:
+    """The web layer's transport seam — the cli twin (P7-04 pattern): tests inject
+    ``FakeNotionTransport`` here, and ``NOTION_TOKEN`` is read only by the push
+    handler at request time — never at import, never a form field, never persisted."""
+    return UrllibTransport(token)
 
 
 def _chunk_infos(deck: Deck, chunks: list[Chunk]) -> list[ChunkInfo]:
@@ -412,6 +433,35 @@ def create_app(workspace: Path) -> FastAPI:
                 422, f"unknown format {format!r}; expected one of {sorted(_RENDERERS)}"
             )
         return _RENDERERS[format]().render(_load_week(week), RenderOptions())
+
+    @app.post("/api/push")
+    def push(request: PushRequest) -> PushResponse:
+        week = _load_week(request.week_id)
+        result = NotionRenderer().render(week, RenderOptions())
+        # Read at use time, after the render — the cmd_push order, kept.
+        token = os.environ.get("NOTION_TOKEN")
+        if not token:
+            raise HTTPException(
+                409,
+                "NOTION_TOKEN is not set; export it, or put it in a .env next to"
+                " where `lecturenotes serve` was started",
+            )
+        transport = _make_transport(token)
+        try:
+            emit_notion(
+                result,
+                transport,
+                parent_page_id=request.parent_page_id,
+                asset_root=workspace,
+            )
+        except (OSError, ValueError, RuntimeError) as exc:  # missing asset, API failure
+            raise HTTPException(502, str(exc)) from exc
+        payload_doc = json.loads(result.documents[0].text)
+        return PushResponse(
+            title=payload_doc["page"]["title"],
+            payloads=len(payload_doc["payloads"]),
+            assets=len(result.assets),
+        )
 
     @app.get("/ws/{relpath:path}")
     def workspace_file(relpath: str) -> Response:

@@ -1,5 +1,6 @@
 """Shared pytest fixtures: repo paths and the canonical ``NoteWeek``."""
 
+import importlib.util
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,11 @@ from lecturenotes.model import NoteWeek
 from tests.fixtures.notes.week01 import week01 as build_week01
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# The web GUI is an optional extra (PW-01): without it the rest of the suite must
+# still collect and pass, so the web tests are skipped wholesale.
+if importlib.util.find_spec("fastapi") is None:
+    collect_ignore = ["web"]
 
 
 @pytest.fixture(scope="session")

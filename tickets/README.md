@@ -452,11 +452,11 @@ jobs.py, ProgressClient, /api/build + /api/job         PW-04
 
 | ID | Title | Depends on | Done when |
 |---|---|---|---|
-| [PW-01](PW-01-web-skeleton-and-serve.md) | `pairing.py` extraction, `web/` skeleton, `serve` subcommand, 5th contract | P7-05 | `serve --no-browser` binds 127.0.0.1:8765 and serves the shell; missing-extra path prints the install hint (exit 2); `lint-imports` reports 5 contracts, 0 broken; existing suite and smoke commands unchanged |
-| [PW-02](PW-02-upload-state-and-pairing.md) | Workspace state, upload, pairing preview + Files/Pairing panels | PW-01 | Uploaded fixture pptx+vtt pair as `lec01`; a count mismatch returns the `collect_pairs` message verbatim (422); traversal filenames rejected |
-| [PW-03](PW-03-dry-run-preview.md) | Dry-run chunk preview + chunk-table panel | PW-02 | Fixture pair yields 4 chunks (one gap-flagged) and `total_requests == 5` with a raising client seam armed and no `ANTHROPIC_API_KEY` |
-| [PW-04](PW-04-build-job-and-progress.md) | Build job, `ProgressClient`, `/api/build` + `/api/job` | PW-03 | Recorded-fake job reaches `done` with progress 0→5 and writes a week JSON `render` accepts; pairing mismatch → 400; concurrent build → 409; no `sleep` in any job test |
-| [PW-05](PW-05-review-panel-and-render-api.md) | Review panel: `/api/render`, `/ws/` media serving, previews | PW-01 | `/api/render` equals CLI `render --json` per format for the week01 fixture; `/ws/` traversal → 403; figure displays in the markdown preview |
+| [PW-01](completed/PW-01-web-skeleton-and-serve.md) | `pairing.py` extraction, `web/` skeleton, `serve` subcommand, 5th contract | P7-05 | `serve --no-browser` binds 127.0.0.1:8765 and serves the shell; missing-extra path prints the install hint (exit 2); `lint-imports` reports 5 contracts, 0 broken; existing suite and smoke commands unchanged |
+| [PW-02](completed/PW-02-upload-state-and-pairing.md) | Workspace state, upload, pairing preview + Files/Pairing panels | PW-01 | Uploaded fixture pptx+vtt pair as `lec01`; a count mismatch returns the `collect_pairs` message verbatim (422); traversal filenames rejected |
+| [PW-03](completed/PW-03-dry-run-preview.md) | Dry-run chunk preview + chunk-table panel | PW-02 | Fixture pair yields 4 chunks (one gap-flagged) and `total_requests == 5` with a raising client seam armed and no `ANTHROPIC_API_KEY` |
+| [PW-04](completed/PW-04-build-job-and-progress.md) | Build job, `ProgressClient`, `/api/build` + `/api/job` | PW-03 | Recorded-fake job reaches `done` with progress 0→5 and writes a week JSON `render` accepts; pairing mismatch → 400; concurrent build → 409; no `sleep` in any job test |
+| [PW-05](completed/PW-05-review-panel-and-render-api.md) | Review panel: `/api/render`, `/ws/` media serving, previews | PW-01 | `/api/render` equals CLI `render --json` per format for the week01 fixture; `/ws/` traversal → 403; figure displays in the markdown preview |
 | [PW-06](PW-06-push-and-done-gate.md) | `/api/push` + Side-track W done-gate | PW-04, PW-05 | Fake-transport push runs the P7-04 sequence; missing-token error names `NOTION_TOKEN` and `.env`; manual browser build+push recorded; done-gate ticked; tickets moved |
 
 **Suggested order:** PW-01 → PW-02 → PW-03 → PW-04, with **PW-05 in parallel** to
@@ -464,17 +464,21 @@ any of PW-02..04 (it reads existing week JSONs and needs no build); PW-06 last.
 
 ### Side-track W done-gate
 
-- [ ] All six tickets' acceptance criteria met.
-- [ ] The §7.4 ritual survives the GUI: pairing is displayed and explicitly
+- [ ] All six tickets' acceptance criteria met — everything automated is green;
+      PW-06 stays open until its manual browser run (below) is recorded.
+- [x] The §7.4 ritual survives the GUI: pairing is displayed and explicitly
       confirmed, and `/api/build` rejects a confirmation that does not match what
-      the server would run — pinned by a test.
-- [ ] `/api/dry-run` constructs no client and consults no key — pinned by a test
-      (the P5-04 `no_client` doctrine, ported).
+      the server would run — pinned by
+      `tests/web/test_build_api.py::test_build_without_a_matching_pairs_echo_is_400_and_starts_nothing`.
+- [x] `/api/dry-run` constructs no client and consults no key — pinned by every
+      test in `tests/web/test_dry_run.py` (the P5-04 `no_client` doctrine, ported
+      to the `web.app._make_client` seam).
 - [ ] One manual end-to-end run through the browser recorded: upload the fixture
       pptx+vtt, confirm the pairing, 4 chunks / 5 requests in dry-run, real build,
       all three format previews (figure rendering), push twice to a scratch Notion
       page updating the same page in place.
-- [ ] From a clean checkout:
+- [x] Checked 2026-09-04 (the suite, ruff, mypy and lint-imports, plus every
+      CLAUDE.md smoke command byte-unchanged):
 
 ```
 uv sync --all-groups --all-extras

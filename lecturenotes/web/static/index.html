@@ -100,6 +100,22 @@
     <p class="error" id="review-error" hidden></p>
   </section>
 
+  <section class="panel" id="panel-push">
+    <h2>6 &middot; Push to Notion</h2>
+    <p class="hint">Pushes the selected week under a parent page you shared with your
+      integration; re-pushing updates the same page in place. The token comes from
+      <code>NOTION_TOKEN</code> in the environment or <code>.env</code> &mdash; never this page.</p>
+    <div class="row">
+      <label>Parent page id
+        <input id="parent-page" type="text" placeholder="e.g. 26a81bc4b514c869" spellcheck="false">
+      </label>
+      <button id="run-push" type="button" disabled>Push</button>
+      <span id="push-spinner" class="hint" hidden>pushing&hellip;</span>
+    </div>
+    <p id="push-result" class="ok" hidden></p>
+    <p class="error" id="push-error" hidden></p>
+  </section>
+
 </main>
 <script src="/static/app.js"></script>
 </body>
