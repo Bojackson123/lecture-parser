@@ -2,6 +2,9 @@
 __pycache__/
 *.py[cod]
 
+# Secrets — .env.example is the committed template
+.env
+
 # Environments and tool caches
 .venv/
 .pytest_cache/

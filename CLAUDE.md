@@ -227,6 +227,12 @@ loop stays pure. `--asset-root` defaults to the week JSON's directory (the P5-03
 layout); the committed `week01.json` fixture's sources are repo-root-relative
 (P3-04), so pushing *it* needs `--asset-root .` from the repo root.
 
+Tokens live in the environment, optionally seeded from a `./.env` at CLI startup
+(`_load_dotenv` in `cli.py`, stdlib, `setdefault` — a real environment variable
+always wins). `.env` is gitignored; `.env.example` is the committed template. The
+read-at-use-time doctrine is untouched: the values are still consulted only in
+`cmd_push` and a real `complete`.
+
 ## Boundary rules
 
 - `model/` imports nothing else in the package.

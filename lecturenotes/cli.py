@@ -518,6 +518,33 @@ def cmd_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_dotenv(path: Path = Path(".env")) -> None:
+    """Seed ``os.environ`` from a ``.env`` in the working directory, if one exists.
+
+    ``KEY=VALUE`` lines only; ``#`` comments and blanks skipped; matching quotes
+    around a value are unwrapped. ``setdefault``, so a real environment variable
+    always wins. Stdlib on purpose (the P7-04 urllib reasoning: no new dependency),
+    and read-at-use-time survives — this populates the environment in ``main()``,
+    while the tokens are still consulted only where they always were
+    (``cmd_push``; a real ``complete``).
+    """
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        if key:
+            os.environ.setdefault(key, value)
+
+
 def _make_transport(token: str) -> NotionTransport:
     """The one transport seam (the P5-04 ``_make_client`` pattern): tests monkeypatch
     this and no test touches the network. ``NOTION_TOKEN`` is read by ``cmd_push`` at
@@ -554,6 +581,7 @@ def cmd_push(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _load_dotenv()
     if argv is None:
         argv = sys.argv[1:]
     parser = build_parser()
