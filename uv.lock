@@ -640,13 +640,6 @@ dependencies = [
     { name = "python-pptx" },
 ]
 
-[package.optional-dependencies]
-web = [
-    { name = "fastapi" },
-    { name = "python-multipart" },
-    { name = "uvicorn" },
-]
-
 [package.dev-dependencies]
 dev = [
     { name = "httpx" },
@@ -660,18 +653,19 @@ fixtures = [
     { name = "pillow" },
     { name = "reportlab" },
 ]
+web = [
+    { name = "fastapi" },
+    { name = "python-multipart" },
+    { name = "uvicorn" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "anthropic", specifier = ">=1" },
-    { name = "fastapi", marker = "extra == 'web'", specifier = ">=0.115" },
     { name = "pydantic", specifier = ">=2" },
     { name = "pypdf", specifier = ">=6" },
-    { name = "python-multipart", marker = "extra == 'web'", specifier = ">=0.0.9" },
     { name = "python-pptx", specifier = ">=1.0" },
-    { name = "uvicorn", marker = "extra == 'web'", specifier = ">=0.30" },
 ]
-provides-extras = ["web"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -685,6 +679,11 @@ dev = [
 fixtures = [
     { name = "pillow" },
     { name = "reportlab" },
+]
+web = [
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "python-multipart", specifier = ">=0.0.9" },
+    { name = "uvicorn", specifier = ">=0.30" },
 ]
 
 [[package]]

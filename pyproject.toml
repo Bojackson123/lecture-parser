@@ -11,12 +11,6 @@ dependencies = ["pydantic>=2", "python-pptx>=1.0", "pypdf>=6", "anthropic>=1"]
 [project.scripts]
 lecturenotes = "lecturenotes.cli:main"
 
-# The web GUI is an optional extra, not a runtime dependency (the P7-04 doctrine:
-# the pipeline itself needs no server). `lecturenotes serve` without it prints an
-# install hint and exits 2.
-[project.optional-dependencies]
-web = ["fastapi>=0.115", "uvicorn>=0.30", "python-multipart>=0.0.9"]
-
 [dependency-groups]
 dev = [
     "pytest",
@@ -27,6 +21,11 @@ dev = [
     "httpx",  # fastapi.testclient's transport — test-only, never a runtime dep
 ]
 fixtures = ["reportlab", "Pillow"]
+# The web GUI's stack: a dependency group, not a runtime dependency (the P7-04
+# doctrine: the pipeline itself needs no server). It sits in default-groups below
+# so a plain `uv sync` keeps `lecturenotes serve` working instead of uninstalling
+# it; `lecturenotes serve` without it prints an install hint and exits 2.
+web = ["fastapi>=0.115", "uvicorn>=0.30", "python-multipart>=0.0.9"]
 
 [build-system]
 requires = ["hatchling"]
@@ -34,6 +33,11 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["lecturenotes"]
+
+# "dev" is uv's usual default; "web" is added so a plain `uv sync` never
+# uninstalls the serve stack (this uv has no default-extras, hence a group).
+[tool.uv]
+default-groups = ["dev", "web"]
 
 [tool.ruff]
 line-length = 100

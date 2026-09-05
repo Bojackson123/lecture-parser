@@ -237,8 +237,11 @@ read-at-use-time doctrine is untouched: the values are still consulted only in
 
 `lecturenotes serve [--port N] [-o DIR] [--no-browser]` runs a loopback-only FastAPI
 server (127.0.0.1, hardcoded) with a single-page GUI for the whole pipeline. The web
-stack is an **optional extra** (`uv sync --extra web`); every other command works
-without it, and `serve` prints an install hint (exit 2) when it is absent.
+stack lives in the **`web` dependency group**, listed in `[tool.uv] default-groups`
+so a plain `uv sync` installs it — it must never become a `[project]` runtime
+dependency, and never an extra (this uv has no `default-extras`, so an extra gets
+**uninstalled** by every plain `uv sync`, breaking `serve`). Every other command
+works without the group, and `serve` prints an install hint (exit 2) when absent.
 
 Invariants (PW-01..PW-06 decisions):
 
@@ -280,7 +283,7 @@ import-linter enforces these: the contracts live in `pyproject.toml`
 ## Checks
 
 ```
-uv sync --all-groups --all-extras
+uv sync --all-groups
 uv run pytest
 uv run ruff check .
 uv run mypy

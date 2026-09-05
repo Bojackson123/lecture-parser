@@ -432,8 +432,10 @@ notion` prints 1 document whose body parses as JSON with keys `page` and
 Plan §1 lists a GUI as out of v1 scope, so this is a deliberate side-track, outside
 the §6 phase ladder: Phase 8 (verification) and Phase 9 (video) keep their numbers
 and depend on no PW ticket. The deliverable is `lecturenotes serve` — a local
-FastAPI server (an **optional extra**, `uv sync --extra web`; runtime deps
-unchanged) with a plain HTML/JS single page (no Node, no CDN) that walks the full
+FastAPI server (the **`web` dependency group**, in `default-groups` so a plain
+`uv sync` installs it; runtime deps unchanged — originally shipped as an extra,
+reworked when a plain `uv sync` uninstalled it) with a plain HTML/JS single page
+(no Node, no CDN) that walks the full
 pipeline: upload/select a week's files, see and **confirm** the §7.4 pairing,
 preview the dry-run chunking (spending nothing), run the real build with progress,
 review all three formats from the cached week JSON (§7.1's tuning loop), and push
@@ -481,7 +483,7 @@ any of PW-02..04 (it reads existing week JSONs and needs no build); PW-06 last.
       CLAUDE.md smoke command byte-unchanged):
 
 ```
-uv sync --all-groups --all-extras
+uv sync --all-groups
 uv run pytest && uv run ruff check . && uv run mypy && uv run lint-imports
 ```
 

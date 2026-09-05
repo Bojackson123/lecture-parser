@@ -248,7 +248,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Start a local web server on 127.0.0.1 with a single-page GUI "
         "for the whole pipeline: upload a week's files, confirm the pairing, preview "
         "the dry-run chunking, run the build with progress, review every format, and "
-        "push to Notion. Requires the optional web dependencies: uv sync --extra web.",
+        "push to Notion. Needs the web dependency group (installed by a plain uv sync).",
     )
     serve.add_argument(
         "--port", type=int, default=8765, metavar="N", help="port to bind (default: 8765)"
@@ -557,14 +557,15 @@ def cmd_push(args: argparse.Namespace) -> int:
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
-    # Lazy import: the web stack is an optional extra (PW-01), and every other
-    # command must keep working without it.
+    # Lazy import: the web stack lives in its own dependency group (PW-01; in
+    # default-groups so a plain `uv sync` keeps it), and every other command must
+    # keep working without it.
     try:
         from lecturenotes.web.server import serve
     except ModuleNotFoundError:
         print(
-            "lecturenotes serve: the web extra is not installed;"
-            " run `uv sync --extra web` and retry",
+            "lecturenotes serve: the web dependencies are not installed;"
+            " run `uv sync` (or `uv sync --group web`) and retry",
             file=sys.stderr,
         )
         return 2
