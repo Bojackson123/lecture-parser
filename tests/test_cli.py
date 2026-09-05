@@ -1,6 +1,7 @@
 """P1-04 ``lecturenotes captions FILE``, P2-04 ``lecturenotes slides FILE``,
 P3-04 ``lecturenotes render FILE [-o DIR]``, P4-04 ``lecturenotes align DECK
-CAPTIONS`` and P5-04 ``lecturenotes build PATHS...``.
+CAPTIONS``, P5-04 ``lecturenotes build PATHS...`` and P7-05 ``lecturenotes push
+FILE --parent PAGE_ID``.
 
 Debugging commands, not the product (plan §8: "bad notes are almost always bad
 chunks"): ``captions`` prints one line per segment, ``[m:ss–m:ss] text``, or the
@@ -15,7 +16,8 @@ ritual (§7.4), ``--dry-run`` chunking (§8), and the fake-driven real run that 
 the ``NoteWeek`` JSON ``render`` consumes (§7.1's tuning loop). Everything goes
 through ``main([...])`` and ``capsys`` so the tests exercise exactly what the console
 script runs; the build tests monkeypatch ``cli._make_client``, the one client seam,
-so no test touches the network (plan §8).
+and the push tests monkeypatch ``cli._make_transport``, the one transport seam, so no
+test touches the network (plan §8).
 """
 
 from __future__ import annotations
@@ -34,6 +36,7 @@ import lecturenotes
 from lecturenotes import cli
 from lecturenotes.align.boundaries import Chunk
 from lecturenotes.cli import format_clock, main
+from lecturenotes.emit.notion_api import FakeNotionTransport
 from lecturenotes.generate.client import GenRequest, RecordedClient
 from lecturenotes.ingest.slides import Deck, image_id
 from lecturenotes.model import NoteLecture, NoteWeek, SourceRef
@@ -624,17 +627,6 @@ def test_render_format_anki_out_writes_deck_and_no_assets_dir(
     assert not (tmp_path / "assets").exists()
 
 
-def test_render_format_notion_is_an_argparse_choices_error(
-    week_json_path: str, capsys: pytest.CaptureFixture[str]
-) -> None:
-    with pytest.raises(SystemExit) as excinfo:
-        main(["render", week_json_path, "--format", "notion"])
-    assert excinfo.value.code == 2
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    assert "invalid choice" in captured.err
-
-
 def test_render_format_anki_json_revalidates_to_one_document_and_no_assets(
     week_json_path: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1063,3 +1055,208 @@ def test_build_second_run_is_served_entirely_from_the_cache(
     assert complete_calls[0] == 5
     assert (tmp_path / f"{WEEK_ID}.json").read_bytes() == first_json
     assert (tmp_path / "media" / MEDIA_NAME).read_bytes() == first_media
+
+
+# =====================================================================================
+# P7-05: ``render --format notion`` and ``lecturenotes push FILE --parent PAGE_ID``
+# =====================================================================================
+
+NOTION_DOC = f"{WEEK_ID}.notion.json"
+NOTION_TITLE = "CS-RL-101 — Week 1"
+FIGURE_PNG = "fig-value-iteration-convergence.png"
+
+
+@pytest.fixture(scope="module")
+def expected_notion_payload(fixtures_dir: Path) -> str:
+    """Hand-written (P7-01) — bytes, not read_text, so newline handling can't lie."""
+    return (fixtures_dir / "notes" / "week01.notion.json").read_bytes().decode("utf-8")
+
+
+# --- render --format notion ---------------------------------------------------------
+
+
+def test_render_format_notion_prints_the_expected_payload(
+    week_json_path: str, expected_notion_payload: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["render", week_json_path, "--format", "notion"]) == 0
+    captured = capsys.readouterr()
+    header, _, body = captured.out.partition("\n")
+    assert header == f"--- {NOTION_DOC}"
+    assert body == expected_notion_payload
+    assert set(json.loads(body)) == {"page", "payloads"}
+    assert captured.err == ""
+
+
+def test_render_format_notion_out_writes_the_document_and_the_figure(
+    week_json_path: str,
+    expected_notion_payload: str,
+    fixtures_dir: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Unlike anki's empty manifest, notion's ``-o`` copies the figure too — the
+    offline view of exactly what ``push`` would upload."""
+    assert main(["render", week_json_path, "--format", "notion", "-o", str(tmp_path)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+    document = tmp_path / NOTION_DOC
+    assert document.read_bytes().decode("utf-8") == expected_notion_payload
+    copied = tmp_path / "assets" / FIGURE_PNG
+    original = fixtures_dir / "decks" / "value_iteration.png"
+    assert copied.read_bytes() == original.read_bytes()
+
+
+# --- push wiring and errors ---------------------------------------------------------
+
+
+@pytest.fixture
+def no_transport(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Any transport construction is a test failure (the P5-01 doctrine)."""
+
+    def boom(token: str) -> FakeNotionTransport:
+        raise AssertionError("a transport was constructed")
+
+    monkeypatch.setattr(cli, "_make_transport", boom)
+    monkeypatch.delenv("NOTION_TOKEN", raising=False)
+
+
+class _TransportSeam:
+    """The factory the tests inject: one shared fake, tokens recorded."""
+
+    def __init__(self) -> None:
+        self.fake = FakeNotionTransport()
+        self.tokens: list[str] = []
+
+    def __call__(self, token: str) -> FakeNotionTransport:
+        self.tokens.append(token)
+        return self.fake
+
+
+@pytest.fixture
+def transport_seam(monkeypatch: pytest.MonkeyPatch) -> _TransportSeam:
+    seam = _TransportSeam()
+    monkeypatch.setattr(cli, "_make_transport", seam)
+    monkeypatch.setenv("NOTION_TOKEN", "secret-token")
+    return seam
+
+
+def test_push_without_parent_is_an_argparse_error(
+    week_json_path: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        main(["push", week_json_path])
+    assert excinfo.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "--parent" in captured.err
+
+
+def test_push_missing_file_returns_2_with_stderr_only(
+    tmp_path: Path, no_transport: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    missing = str(tmp_path / "nope.json")
+    assert main(["push", missing, "--parent", "x"]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.startswith("lecturenotes push: ")
+    assert "nope.json" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_push_wrong_shape_json_returns_2_with_stderr_only(
+    fixtures_dir: Path, no_transport: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The standard render-path error contract: a ``Deck``, not a ``NoteWeek``."""
+    deck_json = str(fixtures_dir / "decks" / "lecture01.deck.json")
+    assert main(["push", deck_json, "--parent", "x"]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.startswith("lecturenotes push: ")
+    assert "Traceback" not in captured.err
+
+
+def test_push_without_token_exits_2_and_constructs_no_transport(
+    week_json_path: str, no_transport: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``NOTION_TOKEN`` is read at run time, after validation — and its absence must
+    fail cleanly before any transport exists (the P5-01 doctrine, asserted the same
+    way as ``no_client``: the boom factory would raise)."""
+    assert main(["push", week_json_path, "--parent", "x"]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "lecturenotes push: NOTION_TOKEN is not set\n"
+
+
+# --- push against the injected fake -------------------------------------------------
+
+
+def _push_fixture_week(week_json_path: str, repo_root: Path) -> int:
+    """The fixture's asset sources are repo-root-relative (the P3-04 quirk), so the
+    fixture push overrides the week-JSON-directory default with ``--asset-root``."""
+    return main(
+        ["push", week_json_path, "--parent", "parent-1", "--asset-root", str(repo_root)]
+    )
+
+
+def test_push_fresh_emit_runs_the_full_sequence_and_prints_a_summary(
+    week_json_path: str,
+    repo_root: Path,
+    transport_seam: _TransportSeam,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert _push_fixture_week(week_json_path, repo_root) == 0
+    fake = transport_seam.fake
+    assert [call[0] for call in fake.calls] == [
+        "find_child_page",
+        "create_page",
+        "upload_file",
+        "append_children",
+    ]
+    assert fake.calls[0][1:] == ("parent-1", NOTION_TITLE)
+    (page_id, appended), = fake.appended
+    assert page_id == "page-1"
+    assert appended[0]["type"] == "heading_1"
+    name, media_type, data = fake.uploaded["upload-1"]
+    assert name == FIGURE_PNG
+    assert media_type == "image/png"
+    assert data == (repo_root / "tests/fixtures/decks/value_iteration.png").read_bytes()
+    assert transport_seam.tokens == ["secret-token"]
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert captured.out == f'pushed "{NOTION_TITLE}": 1 payload(s), 1 asset(s)\n'
+
+
+def test_push_twice_reemits_to_the_same_page_with_no_second_create(
+    week_json_path: str,
+    repo_root: Path,
+    transport_seam: _TransportSeam,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """§7.2 at the CLI: the second push finds the page by title and never creates."""
+    assert _push_fixture_week(week_json_path, repo_root) == 0
+    first_calls = len(transport_seam.fake.calls)
+    assert _push_fixture_week(week_json_path, repo_root) == 0
+    second = [call[0] for call in transport_seam.fake.calls[first_calls:]]
+    assert second == ["find_child_page", "list_children", "upload_file", "append_children"]
+    assert [page_id for page_id, _ in transport_seam.fake.appended] == ["page-1", "page-1"]
+
+
+def test_push_asset_root_defaults_to_the_week_jsons_directory(
+    week_json_path: str, tmp_path: Path, transport_seam: _TransportSeam
+) -> None:
+    """The P5-03 layout observed end-to-end: a week JSON with its ``media/`` beside it
+    pushes those bytes with no flag, wherever the process runs from."""
+    week = json.loads(Path(week_json_path).read_text(encoding="utf-8"))
+    week["lectures"][0]["assets"][0]["source"] = "media/value_iteration.png"
+    moved = tmp_path / f"{WEEK_ID}.json"
+    moved.write_text(json.dumps(week), encoding="utf-8")
+    media = tmp_path / "media"
+    media.mkdir()
+    sentinel = b"bytes-from-the-week-dirs-media"
+    (media / "value_iteration.png").write_bytes(sentinel)
+
+    assert main(["push", str(moved), "--parent", "parent-1"]) == 0
+    ((_upload_id, (name, _media_type, data)),) = transport_seam.fake.uploaded.items()
+    assert name == FIGURE_PNG
+    assert data == sentinel
