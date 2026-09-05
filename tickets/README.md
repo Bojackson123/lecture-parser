@@ -353,7 +353,70 @@ uv run pytest && uv run ruff check . && uv run mypy && uv run lint-imports
 passes, and `uv run lecturenotes render tests/fixtures/notes/week01.json --format
 anki` prints 1 document with 8 card rows.
 
-**Phase 6 is done.** Phase 7 tickets are not written yet.
+**Phase 6 is done.** Phase 7 tickets are below.
+
+## Phase 7 — Notion renderer + emitter
+
+Plan §6: *done when limits enforced; contract tests pass.* Plan §2.3 names the
+limits and rules where they live: "Notion's 2,000-char rich-text cap, 100-element
+children arrays, 2-level nesting, 1,000-block payloads … All renderer-local. None of
+it appears in the IR or upstream." Plan §5: `render/notion.py` and
+`emit/notion_api.py`; delivery is a separate emitter so rendering stays testable
+with no credentials and no network (§2.3, §8), and §7.2's update-not-duplicate must
+hold at the page level — a re-emit updates the same Notion page, never creates a
+sibling. Two decisions taken with the user (2026-09-04): **one page per week** (H1
+section per lecture, mirroring markdown) and **stdlib urllib** for the real
+transport (no new runtime dependency; every test runs against an in-package fake,
+the P5-01 seam pattern).
+
+The renderer emits the page as one JSON document — `{"page", "payloads"}`, blocks
+in Notion API shape verbatim, figures as asset placeholders the emitter resolves by
+uploading — so the hand-written fixture doctrine, byte-equality and the four
+contract properties all survive contact with an API target:
+
+```
+week01.notion.json (hand-written payload spec)      fixtures               P7-01
+NotionRenderer (blocks, rich text, math, anchors)   render/notion.py       P7-02
+the four §2.3 limits, under hypothesis              render/notion.py       P7-03
+NotionTransport seam + fake, emit_notion()          emit/notion_api.py     P7-04
+render --format notion; lecturenotes push           cli.py                 P7-05
+```
+
+| ID | Title | Depends on | Done when |
+|---|---|---|---|
+| [P7-01](P7-01-notion-payload-spec-and-fixture.md) | Notion payload spec + hand-written expected fixture | P6-03 | `week01.notion.json` committed — 1 page, all 9 node types mapped, every anchor via the `format_clock` string, 1 asset placeholder; sanity tests pass; existing fixtures untouched |
+| [P7-02](P7-02-notion-renderer.md) | Notion renderer | P7-01 | `NotionRenderer` output equals `week01.notion.json` byte-for-byte with a 1-asset manifest; math/callout/citation ad-hoc cases pass; all four contract properties pass for all three renderers (12 tests, no skips) |
+| [P7-03](P7-03-notion-limits.md) | Notion limits | P7-02 | Rich text ≤ 2,000 chars, children arrays ≤ 100, payloads ≤ 1,000 blocks, nesting ≤ 2 — under hypothesis for arbitrary weeks; boundary cases pass; `week01.notion.json` byte-unchanged |
+| [P7-04](P7-04-notion-emitter.md) | Notion emitter: transport seam, fake, `emit_notion()` | P7-01 | Fake-transport sequences pass: fresh emit creates page + uploads + appends in order; re-emit finds by title, archives children, appends — same page id, no `create_page`; placeholders swapped; no test touches network or env |
+| [P7-05](P7-05-push-command-and-done-gate.md) | `--format notion`, `lecturenotes push` + Phase 7 done-gate | P7-03, P7-04 | `render --format notion` prints the payload (default stays markdown); `push` errors cleanly without `NOTION_TOKEN` and runs the full sequence against an injected fake; manual double push updates one real page in place; done-gate ticked; tickets moved; `CLAUDE.md` invariants added |
+
+**Suggested order:** P7-01 first — it is the spec both halves implement. Then
+P7-02 → P7-03 on the render side, with **P7-04 in parallel** to either: the
+emitter's tests hand-build `RenderResult` values from the P7-01 spec and never
+import a renderer (the P3-03 independence, reused). P7-05 last.
+
+### Phase 7 done-gate
+
+- [ ] The plan §6 *contract tests pass* criterion: the four renderer contract
+      properties (plan §8) pass un-skipped for **`markdown`, `anki` and `notion`**
+      in `tests/contract/test_renderers.py` (12 tests).
+- [ ] The plan §6 *limits enforced* criterion: each of the four §2.3 limits is
+      pinned by a named test in `tests/render/test_notion_limits.py`, and the
+      hypothesis properties (caps hold, text preserved, for any week) pass.
+- [ ] The §7.2 criterion is observed for real, once, manually: `push` of the
+      fixture week to a scratch Notion page, run twice — the first creates the
+      page (figure and math rendering), the second updates the **same page at the
+      same URL** with no duplicate sibling. Recorded dated in P7-05.
+- [ ] From a clean checkout, with no `NOTION_TOKEN` set:
+
+```
+uv sync --all-groups
+uv run pytest && uv run ruff check . && uv run mypy && uv run lint-imports
+```
+
+passes, and `uv run lecturenotes render tests/fixtures/notes/week01.json --format
+notion` prints 1 document whose body parses as JSON with keys `page` and
+`payloads`.
 
 ## Ticket format
 
