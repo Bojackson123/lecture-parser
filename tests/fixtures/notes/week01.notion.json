@@ -1,0 +1,1334 @@
+{
+  "page": {
+    "title": "CS-RL-101 — Week 1"
+  },
+  "payloads": [
+    [
+      {
+        "type": "heading_1",
+        "heading_1": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "MDPs and the Bellman Equation"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "paragraph",
+        "paragraph": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Introduces Markov decision processes, derives the Bellman optimality equation from their four ingredients, and turns it into the value iteration algorithm. A board-work detour on a dice game motivates solving the last decision first."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "paragraph",
+        "paragraph": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Objectives"
+              },
+              "annotations": {
+                "bold": true
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Name the four ingredients of an MDP and the role of the discount factor."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Write the Bellman optimality equation and explain why it is recursive."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Run one sweep of value iteration by hand and state its stopping rule."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "heading_2",
+        "heading_2": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Markov decision processes"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": "  0:01 · slide 1"
+              },
+              "annotations": {
+                "color": "gray"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "paragraph",
+        "paragraph": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Sequential decision making starts with a Markov decision process. An MDP is fully specified by four ingredients; the Bellman equation later in the lecture is nothing more than these four written down recursively."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "States "
+              }
+            },
+            {
+              "type": "equation",
+              "equation": {
+                "expression": "s \\in S"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": " — everything the agent needs to know right now"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Actions "
+              }
+            },
+            {
+              "type": "equation",
+              "equation": {
+                "expression": "a \\in A"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": " — the choices available in each state"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Reward "
+              }
+            },
+            {
+              "type": "equation",
+              "equation": {
+                "expression": "R(s, a)"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": " — a number received for taking "
+              }
+            },
+            {
+              "type": "equation",
+              "equation": {
+                "expression": "a"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": " in "
+              }
+            },
+            {
+              "type": "equation",
+              "equation": {
+                "expression": "s"
+              }
+            }
+          ],
+          "children": [
+            {
+              "type": "bulleted_list_item",
+              "bulleted_list_item": {
+                "rich_text": [
+                  {
+                    "type": "text",
+                    "text": {
+                      "content": "Immediate and given; not to be confused with value"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Transition function "
+              }
+            },
+            {
+              "type": "equation",
+              "equation": {
+                "expression": "T(s, a, s')"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": " — where you land after each action"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Discount factor "
+              }
+            },
+            {
+              "type": "equation",
+              "equation": {
+                "expression": "\\gamma \\in [0, 1)"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": " — how much later rewards count"
+              }
+            }
+          ],
+          "children": [
+            {
+              "type": "bulleted_list_item",
+              "bulleted_list_item": {
+                "rich_text": [
+                  {
+                    "type": "equation",
+                    "equation": {
+                      "expression": "\\gamma \\to 0"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": {
+                      "content": ": myopic, only the next reward counts"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "bulleted_list_item",
+              "bulleted_list_item": {
+                "rich_text": [
+                  {
+                    "type": "equation",
+                    "equation": {
+                      "expression": "\\gamma \\to 1"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": {
+                      "content": ": far-sighted, but sums may diverge"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "paragraph",
+        "paragraph": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Markov property"
+              },
+              "annotations": {
+                "bold": true
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": ": The next state depends only on the current state and action, not on the history that led there."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "callout",
+        "callout": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Reward vs value: the reward is the number you get right now; the value is the total discounted reward you expect from here on. Students mix these up every year."
+              }
+            }
+          ],
+          "icon": {
+            "type": "emoji",
+            "emoji": "⚠️"
+          },
+          "color": "yellow_background"
+        }
+      },
+      {
+        "type": "heading_2",
+        "heading_2": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Board work: the reroll game"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": "  2:31"
+              },
+              "annotations": {
+                "color": "gray"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "paragraph",
+        "paragraph": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Away from the slides: roll a fair six-sided die and receive the face value in dollars. The game is worth its expected payout, 3.5, so paying anything less is a bargain."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "paragraph",
+        "paragraph": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Now allow one reroll. The trick is to value the second roll first, because its worth is already known: keep the first roll only if it beats 3.5, i.e. a 4, 5 or 6."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "equation",
+        "equation": {
+          "expression": "\\mathbb{E}[\\text{reroll game}] = \\tfrac{1}{2}\\cdot\\tfrac{4+5+6}{3} + \\tfrac{1}{2}\\cdot 3.5 = 4.25"
+        }
+      },
+      {
+        "type": "callout",
+        "callout": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "This is dynamic programming in miniature: solve the last decision first, then use its value to make the earlier one. The same idea drives value iteration."
+              }
+            }
+          ],
+          "icon": {
+            "type": "emoji",
+            "emoji": "💡"
+          },
+          "color": "blue_background"
+        }
+      },
+      {
+        "type": "heading_2",
+        "heading_2": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "The Bellman equation"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": "  4:31 · slide 2"
+              },
+              "annotations": {
+                "color": "gray"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "paragraph",
+        "paragraph": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "The value of a state is the immediate reward plus gamma times the expected value of wherever you land next. The equation is recursive: the value on the left shows up again on the right-hand side."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "equation",
+        "equation": {
+          "expression": "V(s) = \\max_a \\Big[ R(s, a) + \\gamma \\sum_{s'} T(s, a, s')\\, V(s') \\Big]"
+        }
+      },
+      {
+        "type": "table",
+        "table": {
+          "table_width": 2,
+          "has_column_header": true,
+          "has_row_header": false,
+          "children": [
+            {
+              "type": "table_row",
+              "table_row": {
+                "cells": [
+                  [
+                    {
+                      "type": "text",
+                      "text": {
+                        "content": "Term"
+                      }
+                    }
+                  ],
+                  [
+                    {
+                      "type": "text",
+                      "text": {
+                        "content": "Meaning"
+                      }
+                    }
+                  ]
+                ]
+              }
+            },
+            {
+              "type": "table_row",
+              "table_row": {
+                "cells": [
+                  [
+                    {
+                      "type": "equation",
+                      "equation": {
+                        "expression": "V(s)"
+                      }
+                    }
+                  ],
+                  [
+                    {
+                      "type": "text",
+                      "text": {
+                        "content": "value of state "
+                      }
+                    },
+                    {
+                      "type": "equation",
+                      "equation": {
+                        "expression": "s"
+                      }
+                    }
+                  ]
+                ]
+              }
+            },
+            {
+              "type": "table_row",
+              "table_row": {
+                "cells": [
+                  [
+                    {
+                      "type": "equation",
+                      "equation": {
+                        "expression": "\\max_a"
+                      }
+                    }
+                  ],
+                  [
+                    {
+                      "type": "text",
+                      "text": {
+                        "content": "best action available"
+                      }
+                    }
+                  ]
+                ]
+              }
+            },
+            {
+              "type": "table_row",
+              "table_row": {
+                "cells": [
+                  [
+                    {
+                      "type": "equation",
+                      "equation": {
+                        "expression": "\\sum_{s'} T(s, a, s')"
+                      }
+                    }
+                  ],
+                  [
+                    {
+                      "type": "text",
+                      "text": {
+                        "content": "expectation over next states"
+                      }
+                    }
+                  ]
+                ]
+              }
+            },
+            {
+              "type": "table_row",
+              "table_row": {
+                "cells": [
+                  [
+                    {
+                      "type": "equation",
+                      "equation": {
+                        "expression": "\\gamma"
+                      }
+                    }
+                  ],
+                  [
+                    {
+                      "type": "text",
+                      "text": {
+                        "content": "discount factor"
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "callout",
+        "callout": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Write the Bellman equation down properly, with the max over actions and the sum over next states. This will be on the exam."
+              }
+            }
+          ],
+          "icon": {
+            "type": "emoji",
+            "emoji": "📝"
+          },
+          "color": "red_background"
+        }
+      },
+      {
+        "type": "quote",
+        "quote": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Once you believe the Bellman equation has a unique fixed point, everything else in this lecture follows."
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": "\n— Lecturer, on the principle of optimality"
+              },
+              "annotations": {
+                "color": "gray"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "heading_2",
+        "heading_2": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Value iteration"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": "  7:01 · slide 3"
+              },
+              "annotations": {
+                "color": "gray"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "paragraph",
+        "paragraph": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Value iteration turns the equation into an update rule: start with every value at zero and sweep over all the states, applying the update once per state."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "code",
+        "code": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "def value_iteration(mdp, gamma, eps):\n    V = {s: 0.0 for s in mdp.states}\n    while True:\n        delta = 0.0\n        for s in mdp.states:\n            best = max(\n                mdp.R(s, a)\n                + gamma * sum(p * V[s2] for s2, p in mdp.T(s, a))\n                for a in mdp.actions(s)\n            )\n            delta = max(delta, abs(best - V[s]))\n            V[s] = best\n        if delta < eps:\n            return V"
+              }
+            }
+          ],
+          "language": "python"
+        }
+      },
+      {
+        "type": "image",
+        "image": {
+          "type": "asset_placeholder",
+          "asset_placeholder": {
+            "asset_id": "fig-value-iteration-convergence"
+          },
+          "caption": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Maximum change between successive sweeps on a small grid world; it falls geometrically with rate gamma."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "paragraph",
+        "paragraph": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "When the biggest change falls below the tolerance epsilon, stop and read off the greedy policy by picking the best action in every state."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "callout",
+        "callout": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "The lecturer said the error 'shrinks by a factor of gamma every time'. That is the contraction bound; the observed per-sweep ratio can be smaller."
+              }
+            }
+          ],
+          "icon": {
+            "type": "emoji",
+            "emoji": "❓"
+          },
+          "color": "gray_background"
+        }
+      },
+      {
+        "type": "heading_2",
+        "heading_2": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Glossary"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Discount factor"
+              },
+              "annotations": {
+                "bold": true
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": ": "
+              }
+            },
+            {
+              "type": "equation",
+              "equation": {
+                "expression": "\\gamma \\in [0, 1)"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": "; weights a reward "
+              }
+            },
+            {
+              "type": "equation",
+              "equation": {
+                "expression": "k"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": " steps ahead by "
+              }
+            },
+            {
+              "type": "equation",
+              "equation": {
+                "expression": "\\gamma^k"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": "."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Value function"
+              },
+              "annotations": {
+                "bold": true
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": ": "
+              }
+            },
+            {
+              "type": "equation",
+              "equation": {
+                "expression": "V(s)"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": ": the expected total discounted reward starting from state "
+              }
+            },
+            {
+              "type": "equation",
+              "equation": {
+                "expression": "s"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": " and acting optimally."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Greedy policy"
+              },
+              "annotations": {
+                "bold": true
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": ": The policy that picks, in every state, the action maximising the Bellman bracket."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "heading_2",
+        "heading_2": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Open questions"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Why does the Bellman equation have exactly one fixed point for gamma < 1?"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "How many sweeps does value iteration need to reach a given epsilon?"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "heading_1",
+        "heading_1": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Policies and Policy Iteration"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "paragraph",
+        "paragraph": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Defines policies, derives the Bellman expectation equation for a fixed policy, and introduces policy iteration as an alternative to value iteration."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "paragraph",
+        "paragraph": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Objectives"
+              },
+              "annotations": {
+                "bold": true
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Define a policy and the state-value function under a policy."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Explain the two steps of policy iteration and when it terminates."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "heading_2",
+        "heading_2": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Policies and the state-value function"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": "  0:00 · slide 1"
+              },
+              "annotations": {
+                "color": "gray"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "paragraph",
+        "paragraph": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "A policy "
+              }
+            },
+            {
+              "type": "equation",
+              "equation": {
+                "expression": "\\pi"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": " maps states to actions. Fixing a policy turns the MDP into a Markov chain with rewards, and the value of a state under that policy satisfies a linear version of last lecture's equation."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "equation",
+        "equation": {
+          "expression": "V^{\\pi}(s) = R(s, \\pi(s)) + \\gamma \\sum_{s'} T(s, \\pi(s), s')\\, V^{\\pi}(s')"
+        }
+      },
+      {
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "No max: the action is chosen by "
+              }
+            },
+            {
+              "type": "equation",
+              "equation": {
+                "expression": "\\pi"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": ", so the system is linear"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Can be solved exactly by matrix inversion for small state spaces"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "heading_2",
+        "heading_2": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Policy iteration"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": "  3:00 · slides 2–3"
+              },
+              "annotations": {
+                "color": "gray"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "paragraph",
+        "paragraph": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Policy iteration alternates two steps until the policy stops changing: evaluate the current policy, then improve it greedily."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "table",
+        "table": {
+          "table_width": 3,
+          "has_column_header": true,
+          "has_row_header": false,
+          "children": [
+            {
+              "type": "table_row",
+              "table_row": {
+                "cells": [
+                  [
+                    {
+                      "type": "text",
+                      "text": {
+                        "content": "Step"
+                      }
+                    }
+                  ],
+                  [
+                    {
+                      "type": "text",
+                      "text": {
+                        "content": "What it does"
+                      }
+                    }
+                  ],
+                  [
+                    {
+                      "type": "text",
+                      "text": {
+                        "content": "Cost"
+                      }
+                    }
+                  ]
+                ]
+              }
+            },
+            {
+              "type": "table_row",
+              "table_row": {
+                "cells": [
+                  [
+                    {
+                      "type": "text",
+                      "text": {
+                        "content": "Evaluate"
+                      }
+                    }
+                  ],
+                  [
+                    {
+                      "type": "text",
+                      "text": {
+                        "content": "Solve "
+                      }
+                    },
+                    {
+                      "type": "equation",
+                      "equation": {
+                        "expression": "V^{\\pi}"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "text": {
+                        "content": " for the current "
+                      }
+                    },
+                    {
+                      "type": "equation",
+                      "equation": {
+                        "expression": "\\pi"
+                      }
+                    }
+                  ],
+                  [
+                    {
+                      "type": "text",
+                      "text": {
+                        "content": "One linear solve"
+                      }
+                    }
+                  ]
+                ]
+              }
+            },
+            {
+              "type": "table_row",
+              "table_row": {
+                "cells": [
+                  [
+                    {
+                      "type": "text",
+                      "text": {
+                        "content": "Improve"
+                      }
+                    }
+                  ],
+                  [
+                    {
+                      "type": "text",
+                      "text": {
+                        "content": "Set "
+                      }
+                    },
+                    {
+                      "type": "equation",
+                      "equation": {
+                        "expression": "\\pi(s) \\leftarrow \\arg\\max_a [\\cdot]"
+                      }
+                    }
+                  ],
+                  [
+                    {
+                      "type": "text",
+                      "text": {
+                        "content": "One sweep"
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "callout",
+        "callout": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Be able to compare policy iteration with value iteration: few expensive iterations versus many cheap ones."
+              }
+            }
+          ],
+          "icon": {
+            "type": "emoji",
+            "emoji": "📝"
+          },
+          "color": "red_background"
+        }
+      },
+      {
+        "type": "heading_2",
+        "heading_2": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Glossary"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Policy"
+              },
+              "annotations": {
+                "bold": true
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": ": A mapping "
+              }
+            },
+            {
+              "type": "equation",
+              "equation": {
+                "expression": "\\pi: S \\to A"
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": " from states to actions."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "heading_2",
+        "heading_2": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Open questions"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+          "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "Does policy iteration always terminate in finitely many steps?"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  ]
+}

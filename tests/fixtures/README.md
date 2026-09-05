@@ -33,6 +33,9 @@ notes/week01.anki.txt       the week's cards as one Anki notes-in-plain-text fil
                             (P6-01); byte-equality target of tests/render/test_anki.py (P6-02);
                             transcribed from week01.py and never regenerated from the
                             code under test — if the format changes on purpose, edit it deliberately
+notes/week01.notion.json    hand-written Notion payload spec (P7-01); byte-equality target of
+                            tests/render/test_notion.py (P7-02), payload contract for
+                            emit/notion_api.py (P7-04); never regenerated from the code under test
 test_fixtures_sanity.py     line counts, third-party readers, size caps
 ```
 
