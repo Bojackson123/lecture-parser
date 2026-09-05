@@ -50,3 +50,11 @@ invariants section.
   never a form field, never persisted, never at import — CLAUDE.md's "never a
   `--token` flag" applied to HTTP.
 - **Push is synchronous** — seconds of work; a spinner beats job machinery.
+- **Automated browser pass run 2026-09-04** (Claude-driven Chrome against a live
+  `serve` on a scratch workspace): folder-path pairing showed `lec01`
+  pptx+vtt, confirm checkbox gates Build, dry-run table showed 4 chunks (gap
+  badge, spans, 81/120/103/103 words) and "5 API request(s)", markdown preview
+  rendered every construct with the figure loading via `/ws/` at 240×150, anki
+  tab showed the 8-card table, notion tab the payload histogram — zero console
+  errors. **Still owed for the done-gate**: the human run with a real
+  `ANTHROPIC_API_KEY` build and the double push to a real Notion page.
