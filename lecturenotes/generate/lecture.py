@@ -45,7 +45,7 @@ import json
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from lecturenotes.align import Chunk
 from lecturenotes.generate.client import LLMClient
@@ -86,7 +86,8 @@ def _strip_nulls(value: object) -> object:
     Real responses carry noise like ``"note": null`` next to the schema's fields; a
     null-valued key holds no information, and every optional IR field defaults to
     ``None`` anyway, so dropping them changes nothing. An extra key with actual
-    content still fails ``extra="forbid"`` validation loudly.
+    content still fails ``extra="forbid"`` validation loudly; an *empty-container*
+    extra is handled by ``_drop_empty_extras``, which knows which keys are extra.
     """
     if isinstance(value, dict):
         return {key: _strip_nulls(item) for key, item in value.items() if item is not None}
@@ -127,16 +128,51 @@ def _strip_trailing_commas(text: str) -> str:
     return "".join(out)
 
 
+def _drop_empty_extras(data: object, error: ValidationError) -> bool:
+    """Delete the extra keys ``error`` flags whose value is ``[]`` or ``{}``.
+
+    The complement of ``_strip_nulls`` for empty containers (``"children": []`` on a
+    prose node, seen in a real build): an empty extra holds no information, but unlike
+    null it can't be stripped blindly — a *schema* field that is legitimately an empty
+    list (``Table.rows``) must survive — so only keys pydantic itself rejected as
+    extra are touched. Returns whether anything was deleted; an extra key with actual
+    content is left in place to fail the revalidation loudly.
+    """
+    dropped = False
+    for detail in error.errors():
+        if detail["type"] != "extra_forbidden" or detail["input"] not in ([], {}):
+            continue
+        *path, key = detail["loc"]
+        current: object = data
+        for part in path:
+            if isinstance(current, list) and isinstance(part, int):
+                current = current[part]
+            elif isinstance(current, dict) and part in current:
+                current = current[part]
+            # else: a union-discriminator label in the loc, not a data key — skip it.
+        if isinstance(current, dict) and current.get(key) in ([], {}):
+            del current[key]
+            dropped = True
+    return dropped
+
+
 def _validated[ResponseModel: BaseModel](
     model: type[ResponseModel], response: str
 ) -> ResponseModel:
     """Strict validation after the boundary lenience: parse (repairing trailing
-    commas only if the strict parse fails), strip null-valued keys, validate."""
+    commas only if the strict parse fails), strip null-valued keys, validate
+    (dropping empty-container extras only if the strict validation fails)."""
     try:
         parsed = json.loads(response)
     except json.JSONDecodeError:
         parsed = json.loads(_strip_trailing_commas(response))
-    return model.model_validate(_strip_nulls(parsed))
+    data = _strip_nulls(parsed)
+    try:
+        return model.model_validate(data)
+    except ValidationError as error:
+        if not _drop_empty_extras(data, error):
+            raise
+        return model.model_validate(data)
 
 
 def _word_count(chunk: Chunk) -> int:

@@ -171,6 +171,39 @@ def test_null_valued_extra_keys_are_stripped_before_validation(
     )
 
 
+def test_empty_valued_extra_keys_are_stripped_before_validation(
+    deck: Deck, chunks: list[Chunk], responses_path: Path, tmp_path: Path, client: RecordedClient
+) -> None:
+    """LLM noise like ``"children": []`` on a prose node (seen in a real build) is
+    dropped at the boundary; the result is identical to the clean response's."""
+
+    def add_empty_noise(text: str) -> str:
+        response = json.loads(text)
+        response["body"][0]["children"] = []
+        response["metadata"] = {}
+        return json.dumps(response)
+
+    noisy = _modified_client(responses_path, tmp_path, "chunk:lec01:s1-1", add_empty_noise)
+    assert _generate(deck, chunks, noisy, tmp_path / "a") == _generate(
+        deck, chunks, client, tmp_path / "b"
+    )
+
+
+def test_extra_key_with_content_still_fails_validation(
+    deck: Deck, chunks: list[Chunk], responses_path: Path, tmp_path: Path
+) -> None:
+    """Only *empty* extras are noise: an extra key carrying content is rejected."""
+
+    def add_full_extra(text: str) -> str:
+        response = json.loads(text)
+        response["body"][0]["children"] = [{"text": "smuggled"}]
+        return json.dumps(response)
+
+    bad = _modified_client(responses_path, tmp_path, "chunk:lec01:s1-1", add_full_extra)
+    with pytest.raises(ValidationError, match="children"):
+        _generate(deck, chunks, bad, tmp_path / "out")
+
+
 def test_trailing_commas_are_repaired_before_parsing(
     deck: Deck, chunks: list[Chunk], responses_path: Path, tmp_path: Path, client: RecordedClient
 ) -> None:
