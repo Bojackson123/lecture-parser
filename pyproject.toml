@@ -11,6 +11,12 @@ dependencies = ["pydantic>=2", "python-pptx>=1.0", "pypdf>=6", "anthropic>=1"]
 [project.scripts]
 lecturenotes = "lecturenotes.cli:main"
 
+# The web GUI is an optional extra, not a runtime dependency (the P7-04 doctrine:
+# the pipeline itself needs no server). `lecturenotes serve` without it prints an
+# install hint and exits 2.
+[project.optional-dependencies]
+web = ["fastapi>=0.115", "uvicorn>=0.30", "python-multipart>=0.0.9"]
+
 [dependency-groups]
 dev = [
     "pytest",
@@ -18,6 +24,7 @@ dev = [
     "mypy",
     "import-linter",
     "hypothesis",
+    "httpx",  # fastapi.testclient's transport — test-only, never a runtime dep
 ]
 fixtures = ["reportlab", "Pillow"]
 
@@ -88,3 +95,21 @@ source_modules = [
     "lecturenotes.generate",
 ]
 forbidden_modules = ["lecturenotes.render", "lecturenotes.emit"]
+
+# Side-track W: `web`, like `cli`, is an unconstrained composer — it imports both
+# halves, which is its job. Nothing in the pipeline may import it back. `cli` is
+# deliberately excluded (cmd_serve lazily imports web); `pairing` is included so the
+# helper shared by both frontends can never grow a web import.
+[[tool.importlinter.contracts]]
+name = "nothing in the pipeline imports the web layer"
+type = "forbidden"
+source_modules = [
+    "lecturenotes.model",
+    "lecturenotes.ingest",
+    "lecturenotes.align",
+    "lecturenotes.generate",
+    "lecturenotes.render",
+    "lecturenotes.emit",
+    "lecturenotes.pairing",
+]
+forbidden_modules = ["lecturenotes.web"]

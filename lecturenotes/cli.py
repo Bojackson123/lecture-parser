@@ -30,7 +30,6 @@ import argparse
 import io
 import json
 import os
-import re
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -46,6 +45,8 @@ from lecturenotes.generate.prompts import PROMPT_VERSION
 from lecturenotes.ingest.captions import ingest_captions
 from lecturenotes.ingest.slides import Deck, ingest_slides
 from lecturenotes.model import NoteWeek, SourceRef
+from lecturenotes.pairing import collect_pairs as _collect_pairs
+from lecturenotes.pairing import course_slug as _course_slug
 from lecturenotes.render.anki import AnkiRenderer
 from lecturenotes.render.base import Renderer, RenderOptions, format_clock
 from lecturenotes.render.markdown import MarkdownRenderer
@@ -240,6 +241,30 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="DIR",
         help="directory asset sources are relative to (default: the week JSON's directory)",
     )
+
+    serve = commands.add_parser(
+        "serve",
+        help="start the local web GUI (requires the web extra)",
+        description="Start a local web server on 127.0.0.1 with a single-page GUI "
+        "for the whole pipeline: upload a week's files, confirm the pairing, preview "
+        "the dry-run chunking, run the build with progress, review every format, and "
+        "push to Notion. Requires the optional web dependencies: uv sync --extra web.",
+    )
+    serve.add_argument(
+        "--port", type=int, default=8765, metavar="N", help="port to bind (default: 8765)"
+    )
+    serve.add_argument(
+        "-o",
+        "--out",
+        type=Path,
+        default=Path("notes"),
+        metavar="DIR",
+        help="workspace: where week JSONs, media/ and uploads live (default: notes, "
+        "matching build)",
+    )
+    serve.add_argument(
+        "--no-browser", action="store_true", help="do not open the browser on startup"
+    )
     return parser
 
 
@@ -374,8 +399,9 @@ def cmd_align(args: argparse.Namespace) -> int:
     return 0
 
 
-_DECK_SUFFIXES = {".pdf", ".pptx"}
-_CAPTION_SUFFIXES = {".vtt", ".srt"}
+# _collect_pairs and _course_slug live in lecturenotes/pairing.py since PW-01 —
+# one §7.4 implementation for both frontends — imported above under their old
+# names so call sites (and the doctrine they encode) are untouched.
 
 
 def _make_client(model: str) -> LLMClient:
@@ -383,56 +409,6 @@ def _make_client(model: str) -> LLMClient:
     ``ANTHROPIC_API_KEY`` handling stays inside ``AnthropicClient`` (consulted only on
     the first real ``complete``, never here)."""
     return AnthropicClient(model)
-
-
-def _collect_pairs(paths: list[Path]) -> list[tuple[str, Path, Path]]:
-    """Sorted-filename pairing (plan §7.4): ``[(lecture_id, deck, captions)]``.
-
-    Directories are scanned non-recursively for known suffixes; explicit files are
-    classified by suffix and anything else is an error. No stem matching, no duration
-    comparison, no content sniffing — §7.4 rejects inference on purpose; the caller
-    prints the result and the user confirms it.
-    """
-    decks: list[Path] = []
-    captions: list[Path] = []
-    for path in paths:
-        if path.is_dir():
-            for child in sorted(path.iterdir()):
-                if child.suffix.lower() in _DECK_SUFFIXES:
-                    decks.append(child)
-                elif child.suffix.lower() in _CAPTION_SUFFIXES:
-                    captions.append(child)
-        elif path.suffix.lower() in _DECK_SUFFIXES:
-            decks.append(path)
-        elif path.suffix.lower() in _CAPTION_SUFFIXES:
-            captions.append(path)
-        else:
-            raise ValueError(
-                f"{path}: not a deck (.pdf/.pptx), a caption file (.vtt/.srt),"
-                " or a directory"
-            )
-    decks.sort(key=lambda p: p.name)
-    captions.sort(key=lambda p: p.name)
-    if len(decks) != len(captions):
-        deck_names = ", ".join(p.name for p in decks) or "(none)"
-        caption_names = ", ".join(p.name for p in captions) or "(none)"
-        raise ValueError(
-            f"{len(decks)} deck(s) but {len(captions)} caption file(s);"
-            f" every deck needs exactly one caption file."
-            f" decks: {deck_names}. captions: {caption_names}"
-        )
-    if not decks:
-        raise ValueError("no decks or caption files found")
-    return [
-        (f"lec{n:02d}", deck, caption)
-        for n, (deck, caption) in enumerate(zip(decks, captions, strict=True), start=1)
-    ]
-
-
-def _course_slug(course: str) -> str:
-    """Course lowercased, non-alphanumeric runs collapsed to ``-`` (§7.2: the week id
-    feeds the stable topic ids, so it must be derivable and boring)."""
-    return re.sub(r"[^a-z0-9]+", "-", course.lower()).strip("-")
 
 
 def cmd_build(args: argparse.Namespace) -> int:
@@ -580,6 +556,22 @@ def cmd_push(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_serve(args: argparse.Namespace) -> int:
+    # Lazy import: the web stack is an optional extra (PW-01), and every other
+    # command must keep working without it.
+    try:
+        from lecturenotes.web.server import serve
+    except ModuleNotFoundError:
+        print(
+            "lecturenotes serve: the web extra is not installed;"
+            " run `uv sync --extra web` and retry",
+            file=sys.stderr,
+        )
+        return 2
+    serve(port=args.port, workspace=args.out, open_browser=not args.no_browser)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     _load_dotenv()
     if argv is None:
@@ -604,6 +596,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_build(args)
     if args.command == "push":
         return cmd_push(args)
+    if args.command == "serve":
+        return cmd_serve(args)
     parser.print_help()
     return 0
 

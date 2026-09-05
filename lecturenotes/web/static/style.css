@@ -1,0 +1,24 @@
+/* PW-01 shell; panels arrive with their endpoints. */
+:root {
+  --ink: #1a1d21;
+  --muted: #667085;
+  --line: #e4e7ec;
+  --accent: #2e5aac;
+  --bg: #f7f8fa;
+  --card: #ffffff;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 15px/1.5 system-ui, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+header {
+  padding: 1.2rem 2rem 0.8rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+}
+header h1 { margin: 0; font-size: 1.3rem; }
+.tagline { margin: 0.1rem 0 0; color: var(--muted); }
+main { max-width: 60rem; margin: 0 auto; padding: 1rem 2rem 4rem; }
