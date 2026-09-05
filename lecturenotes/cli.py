@@ -7,7 +7,12 @@ Pairing is sorted filename order, printed and confirmed, never inferred (§7.4);
 ``--dry-run`` prints the pairing and the exact chunking the real run would prompt
 over and stops before any client exists (§8).
 
-Four inspection subcommands besides it: ``captions`` (P1-04) prints the segments one
+``push`` (P7-05) is stage 8 for a target that isn't a filesystem: it renders one
+``NoteWeek`` JSON with the Notion renderer and delivers it under a parent page via
+``emit_notion`` — credentials (``NOTION_TOKEN``, read at run time, never at import),
+network and side effects, kept out of ``render`` so the §7.1 tuning loop stays pure.
+
+Four inspection subcommands besides them: ``captions`` (P1-04) prints the segments one
 caption file ingests to, ``slides`` (P2-04) prints the deck one slide file ingests to,
 ``render`` (P3-04; ``--format`` P6-03) prints what one ``NoteWeek`` JSON renders to in
 the chosen format (or emits it with ``-o``), ``align`` (P4-04) prints the chunks one
@@ -24,6 +29,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import os
 import re
 import sys
 from collections.abc import Callable
@@ -32,6 +38,7 @@ from pathlib import Path
 from lecturenotes import __version__
 from lecturenotes.align.boundaries import Chunk, align_lecture
 from lecturenotes.emit.filesystem import emit_filesystem
+from lecturenotes.emit.notion_api import NotionTransport, UrllibTransport, emit_notion
 from lecturenotes.generate.cache import CachedClient
 from lecturenotes.generate.client import DEFAULT_MODEL, AnthropicClient, LLMClient
 from lecturenotes.generate.lecture import generate_lecture, merge_chunks
@@ -42,12 +49,14 @@ from lecturenotes.model import NoteWeek, SourceRef
 from lecturenotes.render.anki import AnkiRenderer
 from lecturenotes.render.base import Renderer, RenderOptions, format_clock
 from lecturenotes.render.markdown import MarkdownRenderer
+from lecturenotes.render.notion import NotionRenderer
 
-# The P6-03 format table: Phase 7 adds Notion by adding one entry. A dict, not a
-# plugin registry — two renderers don't justify discovery.
+# The P6-03 format table, grown by the one entry Phase 7 reserved. A dict, not a
+# plugin registry — three renderers still don't justify discovery.
 _RENDERERS: dict[str, Callable[[], Renderer]] = {
     "markdown": MarkdownRenderer,
     "anki": AnkiRenderer,
+    "notion": NotionRenderer,
 }
 
 
@@ -205,6 +214,31 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="DIR",
         help="response cache directory (default: <out>/.cache)",
+    )
+
+    push = commands.add_parser(
+        "push",
+        help="push a NoteWeek JSON to a Notion page (reads NOTION_TOKEN)",
+        description="Render one NoteWeek JSON with the Notion renderer and deliver it "
+        "under a parent page: find or create the week's page by title, upload the "
+        "figures, replace the content in place. The integration token is read from "
+        "NOTION_TOKEN, never from a flag.",
+    )
+    push.add_argument(
+        "file", type=Path, help="a NoteWeek JSON such as tests/fixtures/notes/week01.json"
+    )
+    push.add_argument(
+        "--parent",
+        required=True,
+        metavar="PAGE_ID",
+        help="the Notion page to create or update the week's page under",
+    )
+    push.add_argument(
+        "--asset-root",
+        type=Path,
+        default=None,
+        metavar="DIR",
+        help="directory asset sources are relative to (default: the week JSON's directory)",
     )
     return parser
 
@@ -484,6 +518,41 @@ def cmd_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def _make_transport(token: str) -> NotionTransport:
+    """The one transport seam (the P5-04 ``_make_client`` pattern): tests monkeypatch
+    this and no test touches the network. ``NOTION_TOKEN`` is read by ``cmd_push`` at
+    run time — never at import, never here."""
+    return UrllibTransport(token)
+
+
+def cmd_push(args: argparse.Namespace) -> int:
+    try:
+        week = NoteWeek.model_validate_json(args.file.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:  # missing file, bad JSON, ValidationError
+        print(f"lecturenotes push: {exc}", file=sys.stderr)
+        return 2
+    result = NotionRenderer().render(week, RenderOptions())
+    token = os.environ.get("NOTION_TOKEN")
+    if not token:
+        print("lecturenotes push: NOTION_TOKEN is not set", file=sys.stderr)
+        return 2
+    asset_root = args.asset_root if args.asset_root is not None else args.file.parent
+    transport = _make_transport(token)
+    try:
+        emit_notion(result, transport, parent_page_id=args.parent, asset_root=asset_root)
+    except (OSError, ValueError, RuntimeError) as exc:  # missing asset, API failure
+        print(f"lecturenotes push: {exc}", file=sys.stderr)
+        return 2
+    payload_doc = json.loads(result.documents[0].text)
+    title = payload_doc["page"]["title"]
+    _utf8_stdout()  # the title carries the week separator em-dash
+    print(
+        f'pushed "{title}": {len(payload_doc["payloads"])} payload(s),'
+        f" {len(result.assets)} asset(s)"
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
@@ -505,6 +574,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_align(args)
     if args.command == "build":
         return cmd_build(args)
+    if args.command == "push":
+        return cmd_push(args)
     parser.print_help()
     return 0
 
