@@ -218,10 +218,17 @@ def test_each_callout_kind_maps_to_its_pinned_icon_and_colour(
     kind: CalloutKind, emoji: str, color: str
 ) -> None:
     week = _week([_topic([Callout(kind=kind, text="flagged")])])
+    label = {
+        "type": "text",
+        "text": {"content": kind.value},
+        "annotations": {"bold": True},
+    }
     (block,) = _body(week)
     assert block["callout"]["icon"] == {"type": "emoji", "emoji": emoji}
     assert block["callout"]["color"] == color
-    assert block["callout"]["rich_text"] == [_text_run("flagged")]
+    # The markdown renderer's ``> **EXAM** — text``, in Notion runs: the icon alone
+    # doesn't say what a kind means, so a bold label leads the text.
+    assert block["callout"]["rich_text"] == [label, _text_run(" — "), _text_run("flagged")]
 
 
 def test_callout_style_covers_exactly_the_kind_enum() -> None:

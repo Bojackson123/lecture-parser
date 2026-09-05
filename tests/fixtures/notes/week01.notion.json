@@ -347,6 +347,21 @@
             {
               "type": "text",
               "text": {
+                "content": "PITFALL"
+              },
+              "annotations": {
+                "bold": true
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": " — "
+              }
+            },
+            {
+              "type": "text",
+              "text": {
                 "content": "Reward vs value: the reward is the number you get right now; the value is the total discounted reward you expect from here on. Students mix these up every year."
               }
             }
@@ -416,6 +431,21 @@
         "type": "callout",
         "callout": {
           "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "ASIDE"
+              },
+              "annotations": {
+                "bold": true
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": " — "
+              }
+            },
             {
               "type": "text",
               "text": {
@@ -609,6 +639,21 @@
             {
               "type": "text",
               "text": {
+                "content": "EXAM"
+              },
+              "annotations": {
+                "bold": true
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": " — "
+              }
+            },
+            {
+              "type": "text",
+              "text": {
                 "content": "Write the Bellman equation down properly, with the max over actions and the sum over next states. This will be on the exam."
               }
             }
@@ -725,6 +770,21 @@
         "type": "callout",
         "callout": {
           "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "UNCERTAIN"
+              },
+              "annotations": {
+                "bold": true
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": " — "
+              }
+            },
             {
               "type": "text",
               "text": {
@@ -1242,6 +1302,21 @@
         "type": "callout",
         "callout": {
           "rich_text": [
+            {
+              "type": "text",
+              "text": {
+                "content": "EXAM"
+              },
+              "annotations": {
+                "bold": true
+              }
+            },
+            {
+              "type": "text",
+              "text": {
+                "content": " — "
+              }
+            },
             {
               "type": "text",
               "text": {
