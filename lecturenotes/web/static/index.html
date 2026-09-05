@@ -12,7 +12,43 @@
   <p class="tagline">a week of lectures &rarr; structured study notes</p>
 </header>
 <main id="app">
-  <noscript>This GUI needs JavaScript.</noscript>
+
+  <section class="panel" id="panel-files">
+    <h2>1 &middot; Files</h2>
+    <p class="hint">One deck (.pdf/.pptx) and one caption file (.vtt/.srt) per lecture.
+      Name them so sorting pairs them &mdash; <code>lecture01.pdf</code> +
+      <code>lecture01.vtt</code>.</p>
+    <div id="dropzone" tabindex="0">
+      <strong>Drop a week's files here</strong> or
+      <label class="filepick">choose files<input id="filepick" type="file" multiple></label>
+    </div>
+    <div class="row">
+      <label>Week folder name
+        <input id="week-slug" type="text" value="week" spellcheck="false">
+      </label>
+      <label>&hellip;or a folder already on this machine
+        <input id="folder-path" type="text" placeholder="e.g. C:\lectures\week03" spellcheck="false">
+      </label>
+      <button id="add-folder" type="button">Add folder</button>
+    </div>
+    <ul id="file-list"></ul>
+    <p class="error" id="files-error" hidden></p>
+  </section>
+
+  <section class="panel" id="panel-pairing">
+    <h2>2 &middot; Pairing</h2>
+    <p class="hint warn">Sorted filename order &mdash; check it, a wrong pairing looks fine.</p>
+    <table id="pairing-table" hidden>
+      <thead><tr><th></th><th>deck</th><th>captions</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <p class="error" id="pairing-error" hidden></p>
+    <label class="confirm" id="confirm-row" hidden>
+      <input id="confirm-pairing" type="checkbox">
+      this pairing is right &mdash; each deck sits beside its own lecture's captions
+    </label>
+  </section>
+
 </main>
 <script src="/static/app.js"></script>
 </body>

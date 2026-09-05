@@ -1,4 +1,4 @@
-/* PW-01 shell; panels arrive with their endpoints. */
+/* Panels arrive with their endpoints (PW-02..PW-06). */
 :root {
   --ink: #1a1d21;
   --muted: #667085;
@@ -22,3 +22,58 @@ header {
 header h1 { margin: 0; font-size: 1.3rem; }
 .tagline { margin: 0.1rem 0 0; color: var(--muted); }
 main { max-width: 60rem; margin: 0 auto; padding: 1rem 2rem 4rem; }
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem 1.4rem 1.2rem;
+  margin-top: 1.2rem;
+}
+.panel h2 { margin: 0 0 0.4rem; font-size: 1.05rem; }
+.hint { color: var(--muted); margin: 0.2rem 0 0.8rem; }
+.hint.warn { color: #9a6700; }
+.error { color: #b42318; white-space: pre-wrap; }
+
+#dropzone {
+  border: 2px dashed var(--line);
+  border-radius: 8px;
+  padding: 1.6rem;
+  text-align: center;
+  color: var(--muted);
+  cursor: pointer;
+}
+#dropzone.drag { border-color: var(--accent); background: #eef2fa; }
+.filepick { color: var(--accent); text-decoration: underline; cursor: pointer; }
+.filepick input { display: none; }
+
+.row { display: flex; gap: 1rem; align-items: flex-end; margin-top: 0.8rem; flex-wrap: wrap; }
+.row label { display: flex; flex-direction: column; gap: 0.2rem; color: var(--muted); font-size: 0.85rem; }
+input[type="text"] {
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  min-width: 16rem;
+}
+button {
+  font: inherit;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+button:disabled { background: var(--line); border-color: var(--line); color: var(--muted); cursor: not-allowed; }
+button.secondary { background: var(--card); color: var(--accent); }
+
+#file-list { margin: 0.6rem 0 0; padding-left: 1.2rem; color: var(--muted); }
+#file-list li { font-family: ui-monospace, Consolas, monospace; font-size: 0.85rem; }
+
+table { border-collapse: collapse; width: 100%; margin: 0.4rem 0; }
+th, td { text-align: left; padding: 0.3rem 0.6rem; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
+td { font-family: ui-monospace, Consolas, monospace; font-size: 0.85rem; }
+
+.confirm { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.6rem; font-weight: 600; }
