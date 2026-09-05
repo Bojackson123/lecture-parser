@@ -403,15 +403,17 @@ import a renderer (the P3-03 independence, reused). P7-05 last.
 - [x] The plan §6 *limits enforced* criterion: each of the four §2.3 limits is
       pinned by a named test in `tests/render/test_notion_limits.py`, and the
       hypothesis properties (caps hold, text preserved, for any week) pass (P7-03).
-- [ ] The §7.2 criterion is observed for real, once, manually: `push` of the
+- [x] The §7.2 criterion is observed for real, once, manually: `push` of the
       fixture week to a scratch Notion page, run twice — the first creates the
       page (figure and math rendering), the second updates the **same page at the
-      same URL** with no duplicate sibling. Recorded dated in P7-05.
-      *Pending a real integration token. To run:* create a scratch Notion page,
-      share it with a scratch integration, then (from the repo root — the fixture's
-      asset sources are repo-root-relative, the P3-04 quirk) run
-      `uv run lecturenotes push tests/fixtures/notes/week01.json --parent <id>
-      --asset-root .` twice with `NOTION_TOKEN` set.
+      same URL** with no duplicate sibling. Run 2026-09-04 against a real
+      workspace (`--asset-root .` from the repo root — the fixture's sources are
+      repo-root-relative, the P3-04 quirk): the first push created
+      "CS-RL-101 — Week 1" under the scratch page with all 57 top-level blocks
+      (2 lecture H1s, the figure image from the uploaded PNG, 3 equation blocks,
+      5 callouts — verified over the API); the second push updated the **same
+      page id** (`…81bc-b514-c869ce96114f`) in place, the parent still holding
+      exactly one child page. No duplicate sibling. §7.2 end-to-end.
 - [x] From a clean checkout, with no `NOTION_TOKEN` set (checked 2026-09-04):
 
 ```
@@ -422,6 +424,8 @@ uv run pytest && uv run ruff check . && uv run mypy && uv run lint-imports
 passes, and `uv run lecturenotes render tests/fixtures/notes/week01.json --format
 notion` prints 1 document whose body parses as JSON with keys `page` and
 `payloads`.
+
+**Phase 7 is done.** Phase 8 tickets are not written yet.
 
 ## Ticket format
 
