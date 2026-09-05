@@ -64,6 +64,26 @@
     <p class="error" id="chunks-error" hidden></p>
   </section>
 
+  <section class="panel" id="panel-build">
+    <h2>4 &middot; Build <span class="free">(calls the API &mdash; responses cached)</span></h2>
+    <div class="row">
+      <label>Course
+        <input id="course" type="text" placeholder="CS-RL-101" spellcheck="false">
+      </label>
+      <label>Week
+        <input id="week-number" type="number" value="1" min="1" style="min-width:5rem">
+      </label>
+      <button id="run-build" type="button" disabled>Build</button>
+    </div>
+    <p class="hint" id="build-gate-hint">Confirm the pairing and preview the chunks first.</p>
+    <div id="build-progress" hidden>
+      <progress id="progress-bar" max="1" value="0"></progress>
+      <p class="hint"><span id="progress-text"></span> <code id="progress-current"></code></p>
+    </div>
+    <p id="build-result" class="ok" hidden></p>
+    <p class="error" id="build-error" hidden></p>
+  </section>
+
 </main>
 <script src="/static/app.js"></script>
 </body>

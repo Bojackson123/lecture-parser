@@ -227,5 +227,87 @@ function wireChunks() {
   });
 }
 
+// --- 4: build ----------------------------------------------------------------------
+
+function updateBuildGate() {
+  const ready = Boolean(state.pairs && state.confirmed && state.dryRun);
+  $("run-build").disabled = !ready;
+  $("build-gate-hint").hidden = ready;
+}
+
+function showJob(job) {
+  const progress = $("build-progress");
+  const result = $("build-result");
+  if (!job) return;
+  if (job.state === "running") {
+    progress.hidden = false;
+    $("progress-bar").max = job.total || 1;
+    $("progress-bar").value = job.total ? job.done : 0;
+    $("progress-text").textContent = job.total
+      ? `${job.done}/${job.total} requests (${job.phase})`
+      : job.phase;
+    $("progress-current").textContent = job.current || "";
+  } else {
+    progress.hidden = true;
+    if (job.state === "done") {
+      const r = job.result;
+      result.textContent =
+        `wrote ${r.file}: ${r.lectures} lecture(s), ${r.topics} topic(s), ${r.assets} asset(s)`;
+      result.hidden = false;
+      document.dispatchEvent(new CustomEvent("week-written"));
+    } else {
+      setError("build-error", job.error || "build failed");
+    }
+  }
+}
+
+async function pollJob() {
+  try {
+    const job = await api("GET", "/api/job");
+    showJob(job);
+    if (job.state === "running") setTimeout(pollJob, 500);
+  } catch (error) {
+    setError("build-error", error.message);
+  }
+}
+
+async function runBuild() {
+  setError("build-error", "");
+  $("build-result").hidden = true;
+  const course = $("course").value.trim();
+  if (!course) {
+    setError("build-error", "course is required (e.g. CS-RL-101)");
+    return;
+  }
+  try {
+    await api("POST", "/api/build", {
+      paths: state.paths,
+      course,
+      week: Number($("week-number").value) || 1,
+      min_words: Number($("min-words").value) || 100,
+      pairs: state.pairs,
+    });
+    pollJob();
+  } catch (error) {
+    setError("build-error", error.message);
+  }
+}
+
+function wireBuild() {
+  $("run-build").addEventListener("click", runBuild);
+  document.addEventListener("pairing-changed", updateBuildGate);
+  document.addEventListener("dry-run-changed", updateBuildGate);
+  // A build that was running when the page loaded keeps reporting.
+  api("GET", "/api/state")
+    .then((data) => {
+      if (data.job) {
+        showJob(data.job);
+        if (data.job.state === "running") pollJob();
+      }
+    })
+    .catch(() => {});
+}
+
 wireFilesAndPairing();
 wireChunks();
+wireBuild();

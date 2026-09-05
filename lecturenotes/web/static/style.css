@@ -77,3 +77,16 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 td { font-family: ui-monospace, Consolas, monospace; font-size: 0.85rem; }
 
 .confirm { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.6rem; font-weight: 600; }
+
+.free { color: var(--muted); font-weight: 400; font-size: 0.85rem; }
+.gap-badge {
+  background: #fdead7;
+  color: #9a6700;
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  font-size: 0.78rem;
+  font-family: system-ui, sans-serif;
+}
+progress { width: 100%; height: 0.8rem; }
+.ok { color: #067647; font-weight: 600; }
+#progress-current { color: var(--muted); }

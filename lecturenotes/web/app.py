@@ -18,12 +18,13 @@ from pydantic import BaseModel, ConfigDict
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from lecturenotes.align.boundaries import Chunk, align_lecture
-from lecturenotes.generate.client import AnthropicClient, LLMClient
+from lecturenotes.generate.client import DEFAULT_MODEL, AnthropicClient, LLMClient
 from lecturenotes.generate.lecture import merge_chunks
 from lecturenotes.ingest.captions import ingest_captions
 from lecturenotes.ingest.slides import Deck, ingest_slides
 from lecturenotes.model import NoteWeek
 from lecturenotes.pairing import CAPTION_SUFFIXES, DECK_SUFFIXES, collect_pairs, course_slug
+from lecturenotes.web.jobs import JobManager, JobRunningError, JobStatus
 
 # The shell is three committed files, served from the package so an installed wheel
 # works too. An allowlist, not a directory walk: nothing else can ever be served.
@@ -59,6 +60,7 @@ class WeekInfo(_ApiModel):
 class StateResponse(_ApiModel):
     workspace: str
     weeks: list[WeekInfo]
+    job: JobStatus | None = None
 
 
 class UploadResponse(_ApiModel):
@@ -112,6 +114,23 @@ class DryRunRequest(_ApiModel):
 class DryRunResponse(_ApiModel):
     lectures: list[LectureChunks]
     total_requests: int
+
+
+class BuildRequest(_ApiModel):
+    """``pairs`` is the pairing the UI displayed and the user confirmed — the §7.4
+    ritual in HTTP form. The server recomputes and rejects on any difference, so
+    the confirm click confirms exactly what will run; there is no ``--yes``."""
+
+    paths: list[str]
+    course: str
+    week: int
+    min_words: int = 100
+    model: str = DEFAULT_MODEL
+    pairs: list[PairEntry]
+
+
+class BuildAccepted(_ApiModel):
+    job_id: str
 
 
 _KNOWN_SUFFIXES = DECK_SUFFIXES | CAPTION_SUFFIXES
@@ -215,7 +234,9 @@ def create_app(workspace: Path) -> FastAPI:
     live there, plus ``uploads/`` for files that arrive through the browser.
     """
     workspace.mkdir(parents=True, exist_ok=True)
+    jobs = JobManager()
     app = FastAPI(title="lecturenotes", docs_url=None, redoc_url=None, openapi_url=None)
+    app.state.jobs = jobs
     # Loopback single-user tool; the host check is the cheap DNS-rebinding guard.
     # "testserver" is fastapi.testclient's default and unreachable from outside.
     app.add_middleware(
@@ -242,7 +263,9 @@ def create_app(workspace: Path) -> FastAPI:
 
     @app.get("/api/state")
     def state() -> StateResponse:
-        return StateResponse(workspace=str(workspace), weeks=_scan_weeks(workspace))
+        return StateResponse(
+            workspace=str(workspace), weeks=_scan_weeks(workspace), job=jobs.status()
+        )
 
     @app.post("/api/upload")
     def upload(week: str, files: list[UploadFile]) -> UploadResponse:
@@ -306,5 +329,40 @@ def create_app(workspace: Path) -> FastAPI:
                 )
             )
         return DryRunResponse(lectures=lectures, total_requests=total_requests)
+
+    @app.post("/api/build", status_code=202)
+    def build(request: BuildRequest) -> BuildAccepted:
+        try:
+            entries = _pair_entries(workspace, request.paths)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        if request.pairs != entries:
+            raise HTTPException(
+                400,
+                "the confirmed pairing does not match what would run;"
+                " re-check the pairing and confirm it again",
+            )
+        resolved = collect_pairs([_resolve(workspace, raw) for raw in request.paths])
+        try:
+            job_id = jobs.start(
+                workspace=workspace,
+                pairs=resolved,
+                course=request.course,
+                week=request.week,
+                min_words=request.min_words,
+                model=request.model,
+                # Resolved at request time so a monkeypatched seam is what runs.
+                make_client=_make_client,
+            )
+        except JobRunningError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        return BuildAccepted(job_id=job_id)
+
+    @app.get("/api/job")
+    def job() -> JobStatus:
+        status = jobs.status()
+        if status is None:
+            raise HTTPException(404, "no build has run yet")
+        return status
 
     return app
