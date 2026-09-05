@@ -153,6 +153,59 @@ def test_figure_citing_an_image_not_on_the_slides_still_raises(
         _generate(deck, chunks, bad, tmp_path / "out")
 
 
+def test_null_valued_extra_keys_are_stripped_before_validation(
+    deck: Deck, chunks: list[Chunk], responses_path: Path, tmp_path: Path, client: RecordedClient
+) -> None:
+    """LLM noise like ``"note": null`` is dropped at the boundary (seen in a real
+    build); the result is identical to the clean response's."""
+
+    def add_null_noise(text: str) -> str:
+        response = json.loads(text)
+        response["body"][0]["note"] = None
+        response["comment"] = None
+        return json.dumps(response)
+
+    noisy = _modified_client(responses_path, tmp_path, "chunk:lec01:s1-1", add_null_noise)
+    assert _generate(deck, chunks, noisy, tmp_path / "a") == _generate(
+        deck, chunks, client, tmp_path / "b"
+    )
+
+
+def test_trailing_commas_are_repaired_before_parsing(
+    deck: Deck, chunks: list[Chunk], responses_path: Path, tmp_path: Path, client: RecordedClient
+) -> None:
+    """A trailing comma before a closer (seen in a real build) parses; the result is
+    identical to the clean response's."""
+
+    def add_trailing_comma(text: str) -> str:
+        pretty = json.dumps(json.loads(text), indent=2)
+        assert pretty.endswith("}")
+        return pretty[:-1] + ",\n}"
+
+    sloppy = _modified_client(responses_path, tmp_path, "chunk:lec01:s1-1", add_trailing_comma)
+    assert _generate(deck, chunks, sloppy, tmp_path / "a") == _generate(
+        deck, chunks, client, tmp_path / "b"
+    )
+
+
+def test_comma_repair_never_touches_string_content(
+    deck: Deck, chunks: list[Chunk], responses_path: Path, tmp_path: Path
+) -> None:
+    """The repair is string-aware: a literal ",}" inside a field survives while the
+    real trailing comma is stripped."""
+    heading = 'Braces ,} and ,] "quoted \\" too" in prose'
+
+    def mutate(text: str) -> str:
+        response = json.loads(text)
+        response["heading"] = heading
+        pretty = json.dumps(response, indent=2)
+        return pretty[:-1] + ",\n}"
+
+    sloppy = _modified_client(responses_path, tmp_path, "chunk:lec01:s1-1", mutate)
+    lecture = _generate(deck, chunks, sloppy, tmp_path / "out")
+    assert lecture.topics[0].heading == heading
+
+
 def test_synthesis_with_an_extra_field_fails_validation(
     deck: Deck, chunks: list[Chunk], responses_path: Path, tmp_path: Path
 ) -> None:

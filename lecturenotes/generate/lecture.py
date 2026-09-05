@@ -41,8 +41,11 @@ Decisions (P5-02):
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+
+from pydantic import BaseModel
 
 from lecturenotes.align import Chunk
 from lecturenotes.generate.client import LLMClient
@@ -75,6 +78,65 @@ _EXTENSIONS = {
     "image/gif": ".gif",
     "image/webp": ".webp",
 }
+
+
+def _strip_nulls(value: object) -> object:
+    """Drop dict keys whose value is null, recursively.
+
+    Real responses carry noise like ``"note": null`` next to the schema's fields; a
+    null-valued key holds no information, and every optional IR field defaults to
+    ``None`` anyway, so dropping them changes nothing. An extra key with actual
+    content still fails ``extra="forbid"`` validation loudly.
+    """
+    if isinstance(value, dict):
+        return {key: _strip_nulls(item) for key, item in value.items() if item is not None}
+    if isinstance(value, list):
+        return [_strip_nulls(item) for item in value]
+    return value
+
+
+def _strip_trailing_commas(text: str) -> str:
+    """Remove commas that directly precede ``}`` or ``]`` (whitespace allowed).
+
+    Character-by-character with string-literal tracking, so a ``,}`` inside prose can
+    never be touched — only real trailing commas, the other sloppiness observed in
+    real responses, are dropped.
+    """
+    out: list[str] = []
+    in_string = False
+    escaped = False
+    for char in text:
+        if in_string:
+            out.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char in "}]":
+            last = len(out) - 1
+            while last >= 0 and out[last] in " \t\r\n":
+                last -= 1
+            if last >= 0 and out[last] == ",":
+                del out[last]
+        out.append(char)
+    return "".join(out)
+
+
+def _validated[ResponseModel: BaseModel](
+    model: type[ResponseModel], response: str
+) -> ResponseModel:
+    """Strict validation after the boundary lenience: parse (repairing trailing
+    commas only if the strict parse fails), strip null-valued keys, validate."""
+    try:
+        parsed = json.loads(response)
+    except json.JSONDecodeError:
+        parsed = json.loads(_strip_trailing_commas(response))
+    return model.model_validate(_strip_nulls(parsed))
 
 
 def _word_count(chunk: Chunk) -> int:
@@ -125,7 +187,7 @@ def _chunk_topic(
     ``generate_topic`` and ``generate_lecture`` both go through here, so the request
     and validation path cannot drift between them.
     """
-    notes = ChunkNotes.model_validate_json(client.complete(chunk_prompt(chunk, deck, lecture_id)))
+    notes = _validated(ChunkNotes, client.complete(chunk_prompt(chunk, deck, lecture_id)))
     allowed = {
         image_id for slide in cited_slides(deck, chunk.slides) for image_id in slide.image_ids
     }
@@ -216,8 +278,8 @@ def generate_lecture(
         topic, alts = _chunk_topic(chunk, deck, lecture_id, client)
         topics.append(topic)
         image_alts.update(alts)
-    synthesis = LectureSynthesis.model_validate_json(
-        client.complete(synthesis_prompt(topics, lecture_id))
+    synthesis = _validated(
+        LectureSynthesis, client.complete(synthesis_prompt(topics, lecture_id))
     )
     return NoteLecture(
         id=lecture_id,
