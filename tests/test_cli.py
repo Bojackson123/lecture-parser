@@ -1111,14 +1111,16 @@ def test_render_format_notion_out_writes_the_document_and_the_figure(
 
 
 @pytest.fixture
-def no_transport(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Any transport construction is a test failure (the P5-01 doctrine)."""
+def no_transport(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Any transport construction is a test failure (the P5-01 doctrine). Runs from an
+    empty directory so a developer's real ``.env`` cannot supply the token."""
 
     def boom(token: str) -> FakeNotionTransport:
         raise AssertionError("a transport was constructed")
 
     monkeypatch.setattr(cli, "_make_transport", boom)
     monkeypatch.delenv("NOTION_TOKEN", raising=False)
+    monkeypatch.chdir(tmp_path)
 
 
 class _TransportSeam:
@@ -1260,3 +1262,56 @@ def test_push_asset_root_defaults_to_the_week_jsons_directory(
     ((_upload_id, (name, _media_type, data)),) = transport_seam.fake.uploaded.items()
     assert name == FIGURE_PNG
     assert data == sentinel
+
+
+# --- .env --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def dotenv_seam(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> _TransportSeam:
+    """A transport seam with no token in the environment, running from an empty
+    directory — the only way a token can arrive is a ``.env`` written there."""
+    seam = _TransportSeam()
+    monkeypatch.setattr(cli, "_make_transport", seam)
+    monkeypatch.delenv("NOTION_TOKEN", raising=False)
+    monkeypatch.chdir(tmp_path)
+    return seam
+
+
+def test_push_reads_notion_token_from_a_dotenv_in_the_working_directory(
+    week_json_path: str,
+    repo_root: Path,
+    tmp_path: Path,
+    dotenv_seam: _TransportSeam,
+) -> None:
+    (tmp_path / ".env").write_text(
+        "# scratch integration\nNOTION_TOKEN=from-dotenv\n", encoding="utf-8"
+    )
+    assert _push_fixture_week(week_json_path, repo_root) == 0
+    assert dotenv_seam.tokens == ["from-dotenv"]
+
+
+def test_a_real_environment_variable_wins_over_the_dotenv(
+    week_json_path: str,
+    repo_root: Path,
+    tmp_path: Path,
+    dotenv_seam: _TransportSeam,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / ".env").write_text("NOTION_TOKEN=from-dotenv\n", encoding="utf-8")
+    monkeypatch.setenv("NOTION_TOKEN", "from-env")
+    assert _push_fixture_week(week_json_path, repo_root) == 0
+    assert dotenv_seam.tokens == ["from-env"]
+
+
+def test_dotenv_values_may_be_quoted(
+    week_json_path: str,
+    repo_root: Path,
+    tmp_path: Path,
+    dotenv_seam: _TransportSeam,
+) -> None:
+    (tmp_path / ".env").write_text('NOTION_TOKEN="from-dotenv"\n', encoding="utf-8")
+    assert _push_fixture_week(week_json_path, repo_root) == 0
+    assert dotenv_seam.tokens == ["from-dotenv"]
