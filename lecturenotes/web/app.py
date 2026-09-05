@@ -8,6 +8,8 @@ underlying exceptions verbatim, the CLI's no-traceback doctrine over HTTP.
 
 from __future__ import annotations
 
+import re
+from collections.abc import Callable
 from importlib.resources import files
 from pathlib import Path
 
@@ -24,7 +26,33 @@ from lecturenotes.ingest.captions import ingest_captions
 from lecturenotes.ingest.slides import Deck, ingest_slides
 from lecturenotes.model import NoteWeek
 from lecturenotes.pairing import CAPTION_SUFFIXES, DECK_SUFFIXES, collect_pairs, course_slug
+from lecturenotes.render.anki import AnkiRenderer
+from lecturenotes.render.base import Renderer, RenderOptions, RenderResult
+from lecturenotes.render.markdown import MarkdownRenderer
+from lecturenotes.render.notion import NotionRenderer
 from lecturenotes.web.jobs import JobManager, JobRunningError, JobStatus
+
+# The same three entries as cli._RENDERERS — pinned equal by a test, so a fourth
+# renderer registered there cannot be forgotten here.
+_RENDERERS: dict[str, Callable[[], Renderer]] = {
+    "markdown": MarkdownRenderer,
+    "anki": AnkiRenderer,
+    "notion": NotionRenderer,
+}
+
+# /ws/ serves exactly what previews need: figure images, week JSON, text output.
+_WS_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".svg": "image/svg+xml",
+    ".json": "application/json",
+    ".md": "text/markdown; charset=utf-8",
+    ".txt": "text/plain; charset=utf-8",
+}
+
+_WEEK_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
 # The shell is three committed files, served from the package so an installed wheel
 # works too. An allowlist, not a directory walk: nothing else can ever be served.
@@ -364,5 +392,37 @@ def create_app(workspace: Path) -> FastAPI:
         if status is None:
             raise HTTPException(404, "no build has run yet")
         return status
+
+    def _load_week(week: str) -> NoteWeek:
+        if not _WEEK_ID.fullmatch(week):
+            raise HTTPException(404, f"no such week: {week}")
+        path = workspace / f"{week}.json"
+        if not path.is_file():
+            raise HTTPException(404, f"no such week: {week}")
+        try:
+            return NoteWeek.model_validate_json(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @app.get("/api/render")
+    def render(week: str, format: str = "markdown") -> RenderResult:
+        # Pure and free (§7.1): the same renderers the CLI selects, in-process.
+        if format not in _RENDERERS:
+            raise HTTPException(
+                422, f"unknown format {format!r}; expected one of {sorted(_RENDERERS)}"
+            )
+        return _RENDERERS[format]().render(_load_week(week), RenderOptions())
+
+    @app.get("/ws/{relpath:path}")
+    def workspace_file(relpath: str) -> Response:
+        target = (workspace / relpath).resolve()
+        if not target.is_relative_to(workspace.resolve()):
+            raise HTTPException(403, "outside the workspace")
+        media_type = _WS_TYPES.get(target.suffix.lower())
+        if media_type is None:
+            raise HTTPException(403, f"{target.suffix or target.name}: type not served")
+        if not target.is_file():
+            raise HTTPException(404, f"no such file: {relpath}")
+        return Response(target.read_bytes(), media_type=media_type)
 
     return app

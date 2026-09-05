@@ -84,6 +84,22 @@
     <p class="error" id="build-error" hidden></p>
   </section>
 
+  <section class="panel" id="panel-review">
+    <h2>5 &middot; Review <span class="free">(renders the cached JSON &mdash; free, endlessly)</span></h2>
+    <div class="row">
+      <label>Week
+        <select id="week-select"></select>
+      </label>
+      <nav id="format-tabs">
+        <button type="button" class="tab active" data-format="markdown">markdown</button>
+        <button type="button" class="tab" data-format="anki">anki</button>
+        <button type="button" class="tab" data-format="notion">notion</button>
+      </nav>
+    </div>
+    <div id="preview"></div>
+    <p class="error" id="review-error" hidden></p>
+  </section>
+
 </main>
 <script src="/static/app.js"></script>
 </body>

@@ -308,6 +308,258 @@ function wireBuild() {
     .catch(() => {});
 }
 
+// --- 5: review ---------------------------------------------------------------------
+// mdToHtml parses exactly the closed construct set our own MarkdownRenderer emits
+// (pinned by tests/fixtures/notes/week01.md) — it is not a general markdown parser.
+
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function inline(text) {
+  let html = escapeHtml(text);
+  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+  html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  return html;
+}
+
+function mdToHtml(markdown, assetSrc) {
+  const lines = markdown.split("\n");
+  const out = [];
+  let i = 0;
+  const paragraph = [];
+  const flush = () => {
+    if (paragraph.length) {
+      out.push(`<p>${inline(paragraph.join(" "))}</p>`);
+      paragraph.length = 0;
+    }
+  };
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line.trim()) { flush(); i += 1; continue; }
+    if (line.startsWith("```")) {
+      flush();
+      const code = [];
+      i += 1;
+      while (i < lines.length && !lines[i].startsWith("```")) { code.push(lines[i]); i += 1; }
+      i += 1;
+      out.push(`<pre><code>${escapeHtml(code.join("\n"))}</code></pre>`);
+      continue;
+    }
+    if (line.trim() === "$$") {
+      flush();
+      const math = [];
+      i += 1;
+      while (i < lines.length && lines[i].trim() !== "$$") { math.push(lines[i]); i += 1; }
+      i += 1;
+      out.push(`<pre class="math">${escapeHtml(math.join("\n"))}</pre>`);
+      continue;
+    }
+    const heading = /^(#{1,3}) (.*)$/.exec(line);
+    if (heading) {
+      flush();
+      const level = heading[1].length + 1; // page h1 is the site header
+      out.push(`<h${level}>${inline(heading[2])}</h${level}>`);
+      i += 1;
+      continue;
+    }
+    if (/^\[\d+:\d\d/.test(line.trim())) { // the SourceAnchor citation line
+      flush();
+      out.push(`<p class="anchor">${escapeHtml(line.trim())}</p>`);
+      i += 1;
+      continue;
+    }
+    if (line.startsWith("> ")) {
+      flush();
+      const quoted = [];
+      while (i < lines.length && lines[i].startsWith(">")) {
+        quoted.push(lines[i].replace(/^> ?/, ""));
+        i += 1;
+      }
+      const kind = /^\*\*(EXAM|PITFALL|UNCERTAIN|ASIDE)\*\*/.exec(quoted[0]);
+      const cls = kind ? ` class="callout callout-${kind[1].toLowerCase()}"` : "";
+      out.push(`<blockquote${cls}>${quoted.map(inline).join("<br>")}</blockquote>`);
+      continue;
+    }
+    if (line.startsWith("|")) {
+      flush();
+      const rows = [];
+      while (i < lines.length && lines[i].startsWith("|")) { rows.push(lines[i]); i += 1; }
+      const cells = (row) => row.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+      let html = "<table><thead><tr>";
+      html += cells(rows[0]).map((c) => `<th>${inline(c)}</th>`).join("");
+      html += "</tr></thead><tbody>";
+      for (const row of rows.slice(2)) { // row 1 is the |---| separator
+        html += `<tr>${cells(row).map((c) => `<td>${inline(c)}</td>`).join("")}</tr>`;
+      }
+      out.push(html + "</tbody></table>");
+      continue;
+    }
+    if (/^\s*- /.test(line)) {
+      flush();
+      let html = "";
+      let depth = -1;
+      while (i < lines.length && /^\s*- /.test(lines[i])) {
+        const item = /^(\s*)- (.*)$/.exec(lines[i]);
+        const level = Math.floor(item[1].length / 2);
+        while (depth < level) { html += "<ul><li>"; depth += 1; }
+        while (depth > level) { html += "</li></ul>"; depth -= 1; }
+        if (!html.endsWith("<li>")) html += `</li><li>`;
+        html += inline(item[2]);
+        i += 1;
+      }
+      while (depth >= 0) { html += "</li></ul>"; depth -= 1; }
+      out.push(html);
+      continue;
+    }
+    const figure = /^!\[(.*)\]\((.*)\)$/.exec(line.trim());
+    if (figure) {
+      flush();
+      let caption = "";
+      if (i + 1 < lines.length && /^\*[^*].*\*$/.test(lines[i + 1].trim())) {
+        caption = `<figcaption>${inline(lines[i + 1].trim().slice(1, -1))}</figcaption>`;
+        i += 1;
+      }
+      const src = assetSrc(figure[2]);
+      out.push(
+        `<figure><img src="${escapeHtml(src)}" alt="${escapeHtml(figure[1])}">${caption}</figure>`
+      );
+      i += 1;
+      continue;
+    }
+    paragraph.push(line);
+    i += 1;
+  }
+  flush();
+  return out.join("\n");
+}
+
+function renderMarkdownPreview(container, result) {
+  const bySuffix = {};
+  for (const asset of result.assets) bySuffix[asset.id] = asset.source;
+  const assetSrc = (src) => {
+    // The page links asset_target ("assets/<id>.<ext>"); the bytes live at the
+    // manifest's source path, served under /ws/ when workspace-relative.
+    const id = src.replace(/^assets\//, "").replace(/\.[a-z]+$/, "");
+    const source = bySuffix[id];
+    if (!source) return src;
+    return /^([a-zA-Z]:|\/)/.test(source) ? source : `/ws/${source}`;
+  };
+  const page = document.createElement("article");
+  page.className = "md";
+  page.innerHTML = result.documents.map((doc) => mdToHtml(doc.text, assetSrc)).join("<hr>");
+  container.appendChild(page);
+}
+
+function renderAnkiPreview(container, result) {
+  for (const doc of result.documents) {
+    const rows = doc.text.split("\n").filter((l) => l && !l.startsWith("#"));
+    const table = document.createElement("table");
+    table.innerHTML =
+      "<thead><tr><th>front</th><th>back</th><th>tags</th><th>guid</th></tr></thead>";
+    const body = document.createElement("tbody");
+    for (const row of rows) {
+      const [guid, front, back, tags] = row.split("\t");
+      const tr = document.createElement("tr");
+      for (const value of [front, back, tags, guid]) {
+        const td = document.createElement("td");
+        td.textContent = (value || "").replace(/""/g, '"').replace(/^"|"$/g, "");
+        tr.appendChild(td);
+      }
+      body.appendChild(tr);
+    }
+    table.appendChild(body);
+    const count = document.createElement("p");
+    count.className = "hint";
+    count.textContent = `${rows.length} card(s) — File > Import in Anki updates in place`;
+    container.appendChild(count);
+    container.appendChild(table);
+  }
+}
+
+function renderNotionPreview(container, result) {
+  for (const doc of result.documents) {
+    const payload = JSON.parse(doc.text);
+    const histogram = {};
+    const walk = (blocks) => {
+      for (const block of blocks) {
+        histogram[block.type] = (histogram[block.type] || 0) + 1;
+        const children = block[block.type] && block[block.type].children;
+        if (children) walk(children);
+      }
+    };
+    for (const blocks of payload.payloads) walk(blocks);
+    const summary = document.createElement("p");
+    summary.textContent =
+      `page "${payload.page.title}" - ${payload.payloads.length} payload(s), ` +
+      Object.entries(histogram).map(([type, n]) => `${type}: ${n}`).join(", ");
+    container.appendChild(summary);
+    const details = document.createElement("details");
+    const label = document.createElement("summary");
+    label.textContent = "raw payload JSON";
+    const pre = document.createElement("pre");
+    pre.textContent = JSON.stringify(payload, null, 2);
+    details.appendChild(label);
+    details.appendChild(pre);
+    container.appendChild(details);
+  }
+}
+
+async function refreshWeeks(selectedId) {
+  const select = $("week-select");
+  const data = await api("GET", "/api/state");
+  select.textContent = "";
+  for (const week of data.weeks.filter((w) => w.valid)) {
+    const option = document.createElement("option");
+    option.value = week.id;
+    option.textContent = `${week.file} (${week.lectures} lecture(s), ${week.topics} topic(s))`;
+    select.appendChild(option);
+  }
+  if (selectedId) select.value = selectedId;
+  await renderPreview();
+}
+
+async function renderPreview() {
+  const container = $("preview");
+  container.textContent = "";
+  setError("review-error", "");
+  const week = $("week-select").value;
+  if (!week) return;
+  const format = document.querySelector("#format-tabs .active").dataset.format;
+  try {
+    const result = await api("GET", `/api/render?week=${encodeURIComponent(week)}&format=${format}`);
+    if (format === "markdown") renderMarkdownPreview(container, result);
+    else if (format === "anki") renderAnkiPreview(container, result);
+    else renderNotionPreview(container, result);
+  } catch (error) {
+    setError("review-error", error.message);
+  }
+  document.dispatchEvent(new CustomEvent("week-selected"));
+}
+
+function wireReview() {
+  $("week-select").addEventListener("change", renderPreview);
+  for (const tab of document.querySelectorAll("#format-tabs .tab")) {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll("#format-tabs .tab").forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
+      renderPreview();
+    });
+  }
+  document.addEventListener("week-written", () => {
+    // After a build, jump the review panel to the freshly written week.
+    api("GET", "/api/job")
+      .then((job) => refreshWeeks(job.result && job.result.week_id))
+      .catch(() => refreshWeeks());
+  });
+  refreshWeeks().catch((error) => setError("review-error", error.message));
+}
+
 wireFilesAndPairing();
 wireChunks();
 wireBuild();
+wireReview();

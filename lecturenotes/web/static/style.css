@@ -90,3 +90,55 @@ td { font-family: ui-monospace, Consolas, monospace; font-size: 0.85rem; }
 progress { width: 100%; height: 0.8rem; }
 .ok { color: #067647; font-weight: 600; }
 #progress-current { color: var(--muted); }
+
+#format-tabs { display: flex; gap: 0.3rem; }
+.tab {
+  background: var(--card);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+.tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+select {
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  min-width: 16rem;
+}
+
+#preview { margin-top: 0.8rem; }
+.md { line-height: 1.6; }
+.md h2 { border-bottom: 1px solid var(--line); padding-bottom: 0.2rem; margin-top: 1.6rem; }
+.md h3 { margin-top: 1.4rem; }
+.md h4 { margin: 1rem 0 0.2rem; }
+.md .anchor {
+  color: var(--muted);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.8rem;
+  margin: 0 0 0.4rem;
+}
+.md pre {
+  background: #f2f4f7;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.7rem 0.9rem;
+  overflow-x: auto;
+  font-size: 0.85rem;
+}
+.md pre.math { background: #fbfbfd; text-align: center; }
+.md td, .md th { font-family: inherit; font-size: inherit; }
+.md blockquote {
+  margin: 0.8rem 0;
+  padding: 0.5rem 0.9rem;
+  border-left: 4px solid var(--line);
+  background: #fafafa;
+}
+.md .callout-exam { border-left-color: #b42318; background: #fef3f2; }
+.md .callout-pitfall { border-left-color: #9a6700; background: #fffaeb; }
+.md .callout-uncertain { border-left-color: #6941c6; background: #f9f5ff; }
+.md .callout-aside { border-left-color: #667085; background: #f8f9fc; }
+.md figure { margin: 1rem 0; text-align: center; }
+.md figure img { max-width: 100%; border: 1px solid var(--line); border-radius: 6px; }
+.md figcaption { color: var(--muted); font-size: 0.85rem; margin-top: 0.3rem; }
+details pre { max-height: 24rem; overflow: auto; background: #f2f4f7; padding: 0.7rem; }
+details summary { cursor: pointer; color: var(--accent); }
