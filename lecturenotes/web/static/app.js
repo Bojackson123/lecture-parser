@@ -142,4 +142,90 @@ function wireFilesAndPairing() {
   });
 }
 
+// --- 3: chunk preview (dry-run) ----------------------------------------------------
+
+function formatClock(seconds) {
+  const total = Math.floor(seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+}
+
+function chunkTable(lecture) {
+  const wrap = document.createElement("div");
+  const heading = document.createElement("h3");
+  heading.textContent = `${lecture.lecture_id}: ${lecture.deck} + ${lecture.captions}`;
+  wrap.appendChild(heading);
+  const table = document.createElement("table");
+  table.innerHTML =
+    "<thead><tr><th>slides</th><th>span</th><th>words</th><th>title</th></tr></thead>";
+  const body = document.createElement("tbody");
+  for (const chunk of lecture.chunks) {
+    const row = document.createElement("tr");
+    const slides = document.createElement("td");
+    if (chunk.gap) {
+      const badge = document.createElement("span");
+      badge.className = "gap-badge";
+      badge.textContent = "gap - board work";
+      slides.appendChild(badge);
+    } else {
+      slides.textContent =
+        chunk.slides.start === chunk.slides.end
+          ? `slide ${chunk.slides.start}`
+          : `slides ${chunk.slides.start}-${chunk.slides.end}`;
+    }
+    row.appendChild(slides);
+    for (const value of [
+      `${formatClock(chunk.start_s)}–${formatClock(chunk.end_s)}`,
+      String(chunk.words),
+      chunk.title || "",
+    ]) {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      row.appendChild(cell);
+    }
+    body.appendChild(row);
+  }
+  table.appendChild(body);
+  wrap.appendChild(table);
+  return wrap;
+}
+
+async function runDryRun() {
+  setError("chunks-error", "");
+  $("request-count").textContent = "";
+  const tables = $("chunk-tables");
+  tables.textContent = "";
+  state.dryRun = null;
+  try {
+    const data = await api("POST", "/api/dry-run", {
+      paths: state.paths,
+      min_words: Number($("min-words").value) || 100,
+    });
+    state.dryRun = data;
+    for (const lecture of data.lectures) tables.appendChild(chunkTable(lecture));
+    $("request-count").textContent =
+      `${data.total_requests} API request(s) when built (responses are cached)`;
+  } catch (error) {
+    setError("chunks-error", error.message);
+  }
+  document.dispatchEvent(new CustomEvent("dry-run-changed"));
+}
+
+function wireChunks() {
+  $("run-dry-run").addEventListener("click", runDryRun);
+  document.addEventListener("pairing-changed", () => {
+    $("run-dry-run").disabled = !state.pairs;
+    // A changed pairing invalidates any preview on screen.
+    if (state.dryRun) {
+      state.dryRun = null;
+      $("chunk-tables").textContent = "";
+      $("request-count").textContent = "";
+      document.dispatchEvent(new CustomEvent("dry-run-changed"));
+    }
+  });
+}
+
 wireFilesAndPairing();
+wireChunks();

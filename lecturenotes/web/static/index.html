@@ -49,6 +49,21 @@
     </label>
   </section>
 
+  <section class="panel" id="panel-chunks">
+    <h2>3 &middot; Chunk preview <span class="free">(dry-run &mdash; free)</span></h2>
+    <p class="hint">The exact chunking the build will prompt over. Bad notes are almost
+      always bad chunks &mdash; fix names or captions here, before spending.</p>
+    <div class="row">
+      <label>Merge floor (words)
+        <input id="min-words" type="number" value="100" min="1" style="min-width:6rem">
+      </label>
+      <button id="run-dry-run" type="button" class="secondary" disabled>Preview chunks</button>
+      <span id="request-count" class="hint"></span>
+    </div>
+    <div id="chunk-tables"></div>
+    <p class="error" id="chunks-error" hidden></p>
+  </section>
+
 </main>
 <script src="/static/app.js"></script>
 </body>

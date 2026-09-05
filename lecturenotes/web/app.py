@@ -17,6 +17,11 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from lecturenotes.align.boundaries import Chunk, align_lecture
+from lecturenotes.generate.client import AnthropicClient, LLMClient
+from lecturenotes.generate.lecture import merge_chunks
+from lecturenotes.ingest.captions import ingest_captions
+from lecturenotes.ingest.slides import Deck, ingest_slides
 from lecturenotes.model import NoteWeek
 from lecturenotes.pairing import CAPTION_SUFFIXES, DECK_SUFFIXES, collect_pairs, course_slug
 
@@ -74,7 +79,71 @@ class PairResponse(_ApiModel):
     pairs: list[PairEntry]
 
 
+class SlideRangeInfo(_ApiModel):
+    start: int
+    end: int
+
+
+class ChunkInfo(_ApiModel):
+    """One row of the dry-run table. ``words`` uses the same count as the merge
+    floor (whitespace split per segment), so the numbers the user sees explain the
+    merges they get; ``gap`` is the §4.1 board-work signal (``slides is None``)."""
+
+    slides: SlideRangeInfo | None
+    start_s: float
+    end_s: float
+    words: int
+    title: str | None
+    gap: bool
+
+
+class LectureChunks(_ApiModel):
+    lecture_id: str
+    deck: str
+    captions: str
+    chunks: list[ChunkInfo]
+
+
+class DryRunRequest(_ApiModel):
+    paths: list[str]
+    min_words: int = 100
+
+
+class DryRunResponse(_ApiModel):
+    lectures: list[LectureChunks]
+    total_requests: int
+
+
 _KNOWN_SUFFIXES = DECK_SUFFIXES | CAPTION_SUFFIXES
+
+
+def _make_client(model: str) -> LLMClient:
+    """The web layer's client seam — the cli twin (P5-04 pattern): tests monkeypatch
+    this, and ``ANTHROPIC_API_KEY`` handling stays inside ``AnthropicClient``
+    (consulted only on the first real ``complete``, never here, never in dry-run)."""
+    return AnthropicClient(model)
+
+
+def _chunk_infos(deck: Deck, chunks: list[Chunk]) -> list[ChunkInfo]:
+    titles = {slide.number: slide.title for slide in deck.slides}
+    infos: list[ChunkInfo] = []
+    for chunk in chunks:
+        slides = (
+            None
+            if chunk.slides is None
+            else SlideRangeInfo(start=chunk.slides.start, end=chunk.slides.end)
+        )
+        infos.append(
+            ChunkInfo(
+                slides=slides,
+                start_s=chunk.start_s,
+                end_s=chunk.end_s,
+                words=sum(len(segment.text.split()) for segment in chunk.segments),
+                title=None if chunk.slides is None else titles.get(chunk.slides.start),
+                gap=chunk.slides is None,
+            )
+        )
+    return infos
 
 
 def _bare_filename(name: str) -> bool:
@@ -207,5 +276,35 @@ def create_app(workspace: Path) -> FastAPI:
             return PairResponse(pairs=_pair_entries(workspace, request.paths))
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
+
+    @app.post("/api/dry-run")
+    def dry_run(request: DryRunRequest) -> DryRunResponse:
+        # Stops before any client exists (the P5-04 doctrine over HTTP): no
+        # _make_client, no CachedClient, no key consulted — pinned by tests.
+        # merge_chunks here and generate_lecture's internal merge share min_words,
+        # so this is exactly the chunking the real run prompts over.
+        try:
+            pairs = collect_pairs([_resolve(workspace, raw) for raw in request.paths])
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        lectures: list[LectureChunks] = []
+        total_requests = 0
+        for lecture_id, deck_path, caption_path in pairs:
+            try:
+                deck = ingest_slides(deck_path)
+                segments = ingest_captions(caption_path)
+            except (OSError, ValueError) as exc:
+                raise HTTPException(422, str(exc)) from exc
+            chunks = merge_chunks(align_lecture(deck, segments), request.min_words)
+            total_requests += len(chunks) + 1  # + the lecture's synthesis pass
+            lectures.append(
+                LectureChunks(
+                    lecture_id=lecture_id,
+                    deck=_display(workspace, deck_path),
+                    captions=_display(workspace, caption_path),
+                    chunks=_chunk_infos(deck, chunks),
+                )
+            )
+        return DryRunResponse(lectures=lectures, total_requests=total_requests)
 
     return app
