@@ -15,3 +15,8 @@ __pycache__/
 dist/
 *.egg-info/
 .hypothesis/
+
+# The default output workspace (`build`/`serve` -o): week JSONs, media/, the
+# response .cache/ and web uploads/ all live here and never belong in git.
+# Anchored to the repo root so tests/fixtures/notes/ stays unaffected.
+/notes/

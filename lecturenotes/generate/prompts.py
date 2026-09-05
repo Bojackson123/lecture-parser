@@ -56,7 +56,7 @@ __all__ = [
     "synthesis_prompt",
 ]
 
-PROMPT_VERSION: str = "2"
+PROMPT_VERSION: str = "3"
 
 # The exact sentence the gap-chunk prompt test pins: gap chunks are the §4.1 board-work
 # signal, and the model must know there is no slide context rather than inventing one.
@@ -76,7 +76,9 @@ alone.
 - Do not smooth over gaps: use a Callout of kind UNCERTAIN instead of guessing where \
 the transcript is garbled or ambiguous.
 - Reference only the listed image ids in Figure nodes, and give every referenced id \
-alt text in image_alts."""
+alt text in image_alts. Never invent an image id: if a diagram or chart you want to \
+show has no id listed under "Images on this slide", describe the visual in prose instead \
+of emitting a Figure node."""
 
 
 class ChunkNotes(BaseModel):
